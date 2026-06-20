@@ -53,3 +53,31 @@ Stage Summary:
   3. Edición inline: doble-clic en cualquier nodo o botón ✎, form adaptativo por categoría, validación, toasts de feedback.
   4. Nuevas categorías: KPIs (con progress bar visual de actual/meta/unidad), Stakeholders (con rol y contacto), Timeline (con fecha y bandera de hito crítico).
 - Lint sin errores. Sin errores de runtime. API devuelve 200 consistentemente (~40s para generación, <20ms para CRUD).
+
+---
+Task ID: v3
+Agent: Super Z (main)
+Task: Quitar ejemplos del header (hacen el header más alto y tapan la pantalla), añadir importar/exportar JSON y filtros avanzados en la biblioteca.
+
+Work Log:
+- Eliminé el bloque "Example chips" del header (líneas 720-737) que mostraba 3 ejemplos en una segunda fila. Los ejemplos siguen disponibles en la sección central del EmptyState. Header ahora mide 65px (antes ~110px).
+- Añadí 2 botones al toolbar: Download (exportar JSON) y Upload (importar JSON), junto a un <input type=file hidden> con ref.
+- Implementé exportJSON: serializa el VisionMap completo + palette + metadata (_exportedAt, _exportedBy, _version:2) a un Blob JSON, descarga como `{idea-slugified}.json`.
+- Implementé handleImportJSON: lee el archivo como texto, parsea JSON, valida que tenga nodes con categorías válidas (11 categorías soportadas), asigna IDs si faltan, resetea x/y si son inválidos, setea el mapa importado + paleta + idea + estado dirty, resetea savedId (es un mapa nuevo no guardado). Toast de feedback. Reset del input para permitir re-importar el mismo archivo.
+- Añadí 4 estados para filtros de biblioteca: libSearch, libPaletteFilter, libStarredOnly, libTagFilter.
+- Añadí filteredLibraryMaps (useMemo) que aplica los 4 filtros en cascada sobre savedMaps.maps.
+- Añadí allLibraryTags (useMemo) que extrae tags únicos de todos los mapas.
+- Añadí useEffect que resetea filtros al abrir la biblioteca.
+- Reescribí el Library dialog con: barra de búsqueda con icono, botón "Favoritos" toggle (con estrella dorada rellena), grupo de botones de paleta (Todas/Mint/Nexus Gold/Estate con color swatch), grupo de botones de tags (Todos + hasta 8 tags únicos con prefijo #), contador "X de Y" en el título, estado vacío "Ningún mapa coincide" con botón "Limpiar filtros", cada tarjeta ahora muestra el color swatch de la paleta al lado del nombre.
+- Verifiqué con Agent Browser:
+  * Header mide 65px, sin chips de ejemplos.
+  * JSON export: toast "JSON exportado", archivo se descarga.
+  * JSON import: subí un test-import.json con 3 nodos (idea/objetivo/kpi) → "Mapa importado: 3 nodos", mapa se renderiza con paleta premium.
+  * Library filters: búsqueda "importado" → "1 de 2", filtro Estate → "1 de 2", filtro #premium tag → "1 de 2", filtro Favoritos → muestra solo starred, empty state "0 de 2" con "Limpiar filtros" funciona.
+  * Lint sin errores, sin errores de runtime.
+
+Stage Summary:
+- 3 mejoras completadas y verificadas:
+  1. Header compacto: eliminados los chips de ejemplos del header (65px en lugar de ~110px). Los ejemplos siguen en la sección central.
+  2. Importar/Exportar JSON: 2 botones nuevos en toolbar (Download/Upload). Export serializa todo el mapa con metadatos. Import valida estructura, categorías y coordenadas, permite cargar mapas exportados por cualquier instancia.
+  3. Filtros avanzados en biblioteca: búsqueda full-text (título/idea/resumen/tags), filtro por paleta (4 opciones), filtro por tag (hasta 8 únicos), toggle Favoritos, estado vacío con "Limpiar filtros", contador "X de Y".

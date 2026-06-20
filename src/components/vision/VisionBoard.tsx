@@ -13,6 +13,7 @@ import {
   ArrowUpWideNarrow,
   Bookmark,
   Calendar,
+  Download,
   Euro,
   Eye,
   FileDown,
@@ -28,11 +29,13 @@ import {
   Rocket,
   RotateCcw,
   Save,
+  Search,
   Sparkles,
   Star,
   Target,
   Trash2,
   TrendingUp,
+  Upload,
   Users,
   Wand2,
   Wrench,
@@ -133,6 +136,13 @@ export function VisionBoard() {
   const boardRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number; nodeX: number; nodeY: number } | null>(null);
   const panStart = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Library filters
+  const [libSearch, setLibSearch] = useState("");
+  const [libPaletteFilter, setLibPaletteFilter] = useState<PaletteId | "all">("all");
+  const [libStarredOnly, setLibStarredOnly] = useState(false);
+  const [libTagFilter, setLibTagFilter] = useState<string>("all");
 
   // Drag node
   const handleNodeDragStart = useCallback((id: string, e: React.MouseEvent) => {
@@ -355,6 +365,146 @@ export function VisionBoard() {
     },
     [map]
   );
+
+  // Export current map as JSON file
+  const exportJSON = useCallback(() => {
+    if (!map) return;
+    try {
+      const payload = {
+        ...map,
+        palette,
+        _exportedAt: new Date().toISOString(),
+        _exportedBy: "AncloraVisionFlow",
+        _version: 2,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeName =
+        (map.idea || "anclora-visionflow")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 60) || "anclora-visionflow";
+      link.download = `${safeName}.json`;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("JSON exportado");
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo exportar el JSON");
+    }
+  }, [map, palette]);
+
+  // Import map from JSON file
+  const handleImportJSON = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text) as Partial<VisionMap> & {
+          nodes?: VisionNode[];
+          connections?: VisionMap["connections"];
+        };
+        if (!data || !Array.isArray(data.nodes) || data.nodes.length === 0) {
+          throw new Error("El JSON no contiene nodos válidos.");
+        }
+        // Basic validation
+        const validCats = new Set([
+          "idea",
+          "objective",
+          "step",
+          "risk",
+          "tool",
+          "cost",
+          "priority",
+          "next",
+          "kpi",
+          "stakeholder",
+          "timeline",
+        ]);
+        const cleanNodes: VisionNode[] = data.nodes
+          .filter((n) => n && validCats.has(n.category))
+          .map((n, i) => ({
+            ...n,
+            id: n.id || `node-${i + 1}`,
+            x: typeof n.x === "number" ? n.x : 0,
+            y: typeof n.y === "number" ? n.y : 0,
+          }));
+        if (cleanNodes.length === 0) {
+          throw new Error("No se encontraron nodos con categorías válidas.");
+        }
+        const importedMap: VisionMap = {
+          idea: data.idea || "Mapa importado",
+          summary: data.summary || "",
+          nodes: cleanNodes,
+          connections: Array.isArray(data.connections) ? data.connections : [],
+          apps: Array.isArray(data.apps) ? data.apps : [],
+          generatedAt: data.generatedAt || new Date().toISOString(),
+          palette: (data.palette as PaletteId) || "anclora",
+        };
+        setMap(importedMap);
+        setIdea(importedMap.idea);
+        setPalette(importedMap.palette || "anclora");
+        setSavedId(null);
+        setIsDirty(true);
+        setActiveNodeId(null);
+        setPan({ x: 0, y: 0 });
+        setZoom(0.55);
+        toast.success(`Mapa importado: ${cleanNodes.length} nodos`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "JSON inválido";
+        toast.error(`No se pudo importar: ${msg}`);
+        console.error(err);
+      } finally {
+        // Reset input so the same file can be re-imported
+        e.target.value = "";
+      }
+    },
+    []
+  );
+
+  // Filtered library maps (memoized)
+  const filteredLibraryMaps = useMemo(() => {
+    let arr = savedMaps.maps;
+    if (libStarredOnly) arr = arr.filter((m) => m.starred);
+    if (libPaletteFilter !== "all")
+      arr = arr.filter((m) => m.palette === libPaletteFilter);
+    if (libTagFilter !== "all")
+      arr = arr.filter((m) => m.tags.includes(libTagFilter));
+    if (libSearch.trim()) {
+      const q = libSearch.toLowerCase().trim();
+      arr = arr.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.idea.toLowerCase().includes(q) ||
+          m.summary.toLowerCase().includes(q) ||
+          m.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+    return arr;
+  }, [savedMaps.maps, libSearch, libPaletteFilter, libStarredOnly, libTagFilter]);
+
+  // All unique tags across library
+  const allLibraryTags = useMemo(() => {
+    const set = new Set<string>();
+    savedMaps.maps.forEach((m) => m.tags.forEach((t) => set.add(t)));
+    return Array.from(set).sort();
+  }, [savedMaps.maps]);
+
+  // Reset filters when opening library
+  useEffect(() => {
+    if (libraryOpen) {
+      setLibSearch("");
+      setLibPaletteFilter("all");
+      setLibStarredOnly(false);
+      setLibTagFilter("all");
+    }
+  }, [libraryOpen]);
 
   const zoomIn = useCallback(() => setZoom((z) => Math.min(1.5, z + 0.1)), []);
   const zoomOut = useCallback(() => setZoom((z) => Math.max(0.25, z - 0.1)), []);
@@ -712,29 +862,43 @@ export function VisionBoard() {
                   </TooltipTrigger>
                   <TooltipContent>Exportar PDF</TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={exportJSON}
+                      className="h-9 w-9 bg-background/60"
+                    >
+                      <Download size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Exportar JSON</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-9 w-9 bg-background/60"
+                    >
+                      <Upload size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Importar JSON</TooltipContent>
+                </Tooltip>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleImportJSON}
+                />
               </TooltipProvider>
             </div>
           )}
         </div>
-
-        {/* Example chips */}
-        {!map && !loading && (
-          <div className="px-4 md:px-6 pb-3 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wider">
-              Ejemplos:
-            </span>
-            {EXAMPLE_IDEAS.slice(0, 3).map((ex, i) => (
-              <button
-                key={i}
-                onClick={() => setIdea(ex)}
-                className="text-[11px] px-2.5 py-1 rounded-full bg-muted/60 hover:bg-muted border border-border/60 transition text-foreground/80 max-w-md truncate"
-                title={ex}
-              >
-                {ex.length > 60 ? ex.slice(0, 60) + "…" : ex}
-              </button>
-            ))}
-          </div>
-        )}
       </header>
 
       {/* Main content */}
@@ -1185,15 +1349,119 @@ export function VisionBoard() {
 
       {/* Library dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bookmark size={16} /> Mapas guardados
               <span className="text-xs text-muted-foreground font-normal">
-                ({savedMaps.maps.length})
+                ({filteredLibraryMaps.length}
+                {filteredLibraryMaps.length !== savedMaps.maps.length
+                  ? ` de ${savedMaps.maps.length}`
+                  : ""})
               </span>
             </DialogTitle>
           </DialogHeader>
+
+          {/* Filters */}
+          {savedMaps.maps.length > 0 && (
+            <div className="space-y-2 pb-2 border-b border-border/40">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  value={libSearch}
+                  onChange={(e) => setLibSearch(e.target.value)}
+                  placeholder="Buscar por título, idea, resumen o tag…"
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setLibStarredOnly((v) => !v)}
+                  className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition ${
+                    libStarredOnly
+                      ? "border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37]"
+                      : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/40"
+                  }`}
+                  title="Solo favoritos"
+                >
+                  <Star
+                    size={11}
+                    className={libStarredOnly ? "fill-[#D4AF37]" : ""}
+                  />
+                  Favoritos
+                </button>
+                <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-1">
+                  Paleta:
+                </span>
+                <button
+                  onClick={() => setLibPaletteFilter("all")}
+                  className={`text-[11px] px-2 py-1 rounded-md border transition ${
+                    libPaletteFilter === "all"
+                      ? "border-foreground/40 bg-foreground/10 text-foreground"
+                      : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  Todas
+                </button>
+                {(Object.values(PALETTES)).map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() =>
+                      setLibPaletteFilter(libPaletteFilter === p.id ? "all" : p.id)
+                    }
+                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border transition ${
+                      libPaletteFilter === p.id
+                        ? "border-foreground/40 bg-foreground/10 text-foreground"
+                        : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/40"
+                    }`}
+                    title={p.description}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-sm"
+                      style={{ background: p.accent }}
+                    />
+                    {p.name.replace("Anclora ", "").replace("Premium ", "")}
+                  </button>
+                ))}
+                {allLibraryTags.length > 0 && (
+                  <>
+                    <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider px-1 ml-1">
+                      Tag:
+                    </span>
+                    <button
+                      onClick={() => setLibTagFilter("all")}
+                      className={`text-[11px] px-2 py-1 rounded-md border transition ${
+                        libTagFilter === "all"
+                          ? "border-foreground/40 bg-foreground/10 text-foreground"
+                          : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {allLibraryTags.slice(0, 8).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() =>
+                          setLibTagFilter(libTagFilter === t ? "all" : t)
+                        }
+                        className={`text-[11px] px-2 py-1 rounded-md border transition ${
+                          libTagFilter === t
+                            ? "border-[#6C48C5] bg-[#6C48C5]/15 text-[#a78bfa]"
+                            : "border-border/60 bg-background/40 text-muted-foreground hover:bg-muted/40"
+                        }`}
+                      >
+                        #{t}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto custom-scroll -mx-2 px-2">
             {savedMaps.loading ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
@@ -1209,9 +1477,27 @@ export function VisionBoard() {
                   Genera un mapa y pulsa el botón <Save size={11} className="inline" /> para guardarlo.
                 </div>
               </div>
+            ) : filteredLibraryMaps.length === 0 ? (
+              <div className="py-12 text-center">
+                <Search size={28} className="mx-auto mb-2 text-muted-foreground/50" />
+                <div className="text-sm text-muted-foreground">
+                  Ningún mapa coincide con los filtros.
+                </div>
+                <button
+                  onClick={() => {
+                    setLibSearch("");
+                    setLibPaletteFilter("all");
+                    setLibStarredOnly(false);
+                    setLibTagFilter("all");
+                  }}
+                  className="text-xs text-[#1dab89] hover:underline mt-2"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
             ) : (
               <div className="space-y-1.5">
-                {savedMaps.maps.map((m) => (
+                {filteredLibraryMaps.map((m) => (
                   <div
                     key={m.id}
                     className={`group flex items-start gap-3 p-3 rounded-lg border transition cursor-pointer ${
@@ -1253,7 +1539,15 @@ export function VisionBoard() {
                         <span>·</span>
                         <span>{m.appsCount} apps</span>
                         <span>·</span>
-                        <span className="capitalize">{PALETTES[m.palette as PaletteId]?.name || m.palette}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <span
+                            className="w-2 h-2 rounded-sm"
+                            style={{
+                              background: PALETTES[m.palette as PaletteId]?.accent || "#888",
+                            }}
+                          />
+                          {PALETTES[m.palette as PaletteId]?.name || m.palette}
+                        </span>
                         <span>·</span>
                         <span>{new Date(m.updatedAt).toLocaleDateString("es-ES")}</span>
                         {m.tags.length > 0 && (

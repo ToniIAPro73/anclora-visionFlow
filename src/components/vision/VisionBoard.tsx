@@ -11,21 +11,29 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowUpWideNarrow,
+  Bookmark,
+  Calendar,
   Euro,
   Eye,
   FileDown,
   Footprints,
+  FolderOpen,
   Image as ImageIcon,
-  Layers,
   LayoutGrid,
   Lightbulb,
   Maximize2,
   Minus,
+  Palette,
   Plus,
   Rocket,
   RotateCcw,
+  Save,
   Sparkles,
+  Star,
   Target,
+  Trash2,
+  TrendingUp,
+  Users,
   Wand2,
   Wrench,
   X,
@@ -34,26 +42,43 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { VisionNodeCard } from "./VisionNodeCard";
 import { ConnectionsLayer } from "./ConnectionsLayer";
 import { ANCLORA_APPS } from "@/lib/anclora-ecosystem";
 import {
-  CATEGORY_META,
+  getCategoryMeta,
   CATEGORY_ORDER,
+  PALETTES,
   autoConnect,
   layoutVisionMap,
   type NodeCategory,
+  type PaletteId,
   type VisionMap,
   type VisionNode,
 } from "@/lib/vision-map";
+import { useSavedMaps } from "@/hooks/use-saved-maps";
 
 const ICONS: Record<string, LucideIcon> = {
   Lightbulb,
@@ -64,6 +89,9 @@ const ICONS: Record<string, LucideIcon> = {
   Euro,
   ArrowUpWideNarrow,
   Rocket,
+  TrendingUp,
+  Users,
+  Calendar,
 };
 
 const CANVAS_W = 2400;
@@ -90,6 +118,17 @@ export function VisionBoard() {
   const [isPanning, setIsPanning] = useState(false);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [presentationMode, setPresentationMode] = useState(false);
+
+  // Persistence + palette
+  const [palette, setPalette] = useState<PaletteId>("anclora");
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saveTags, setSaveTags] = useState("");
+
+  const savedMaps = useSavedMaps();
 
   const boardRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number; nodeX: number; nodeY: number } | null>(null);
@@ -184,6 +223,8 @@ export function VisionBoard() {
     setPan({ x: 0, y: 0 });
     setZoom(0.55);
     setActiveNodeId(null);
+    setSavedId(null);
+    setIsDirty(false);
 
     try {
       const res = await fetch("/api/vision/generate", {
@@ -195,7 +236,7 @@ export function VisionBoard() {
       if (!res.ok) {
         throw new Error(data.error || "No se pudo generar el mapa");
       }
-      setMap(data);
+      setMap({ ...data, palette });
       toast.success("Mapa visual generado");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error desconocido";
@@ -204,15 +245,116 @@ export function VisionBoard() {
     } finally {
       setLoading(false);
     }
-  }, [idea]);
+  }, [idea, palette]);
 
   const relayout = useCallback(() => {
     if (!map) return;
     const laidOut = layoutVisionMap(map.nodes);
     const connections = autoConnect(laidOut);
     setMap({ ...map, nodes: laidOut, connections });
+    setIsDirty(true);
     toast.success("Layout reiniciado");
   }, [map]);
+
+  // Inline node editing
+  const updateNode = useCallback((id: string, patch: Partial<VisionNode>) => {
+    setMap((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+      };
+    });
+    setIsDirty(true);
+    toast.success("Nodo actualizado");
+  }, []);
+
+  // Persist map
+  const openSaveDialog = useCallback(() => {
+    if (!map) return;
+    setSaveTitle(map.idea.slice(0, 80) || "Mapa sin título");
+    setSaveTags("");
+    setSaveDialogOpen(true);
+  }, [map]);
+
+  const confirmSave = useCallback(async () => {
+    if (!map) return;
+    try {
+      const result = await savedMaps.saveMap({
+        id: savedId || undefined,
+        map: { ...map, palette },
+        title: saveTitle.trim() || map.idea.slice(0, 80),
+        tags: saveTags.split(",").map((t) => t.trim()).filter(Boolean),
+      });
+      setSavedId(result.id);
+      setIsDirty(false);
+      setSaveDialogOpen(false);
+      toast.success("Mapa guardado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    }
+  }, [map, palette, savedId, saveTitle, saveTags, savedMaps]);
+
+  const loadMapById = useCallback(
+    async (id: string) => {
+      try {
+        const loaded = await savedMaps.loadMap(id);
+        setMap(loaded.map);
+        setIdea(loaded.map.idea);
+        setPalette(loaded.map.palette || "anclora");
+        setSavedId(loaded.id);
+        setIsDirty(false);
+        setActiveNodeId(null);
+        setPan({ x: 0, y: 0 });
+        setZoom(0.55);
+        setLibraryOpen(false);
+        toast.success(`Mapa cargado: ${loaded.title}`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error al cargar");
+      }
+    },
+    [savedMaps]
+  );
+
+  const deleteMapById = useCallback(
+    async (id: string, title: string) => {
+      if (!confirm(`¿Eliminar "${title}"? Esta acción no se puede deshacer.`)) return;
+      try {
+        await savedMaps.deleteMap(id);
+        if (id === savedId) {
+          setSavedId(null);
+          setIsDirty(false);
+        }
+        toast.success("Mapa eliminado");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error al eliminar");
+      }
+    },
+    [savedMaps, savedId]
+  );
+
+  const toggleStarById = useCallback(
+    async (id: string, current: boolean) => {
+      try {
+        await savedMaps.toggleStar(id, !current);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error al actualizar");
+      }
+    },
+    [savedMaps]
+  );
+
+  // Palette change (live)
+  const changePalette = useCallback(
+    (p: PaletteId) => {
+      setPalette(p);
+      if (map) {
+        setMap({ ...map, palette: p });
+        setIsDirty(true);
+      }
+    },
+    [map]
+  );
 
   const zoomIn = useCallback(() => setZoom((z) => Math.min(1.5, z + 0.1)), []);
   const zoomOut = useCallback(() => setZoom((z) => Math.max(0.25, z - 0.1)), []);
@@ -448,6 +590,81 @@ export function VisionBoard() {
                     <Button
                       variant="outline"
                       size="icon"
+                      onClick={openSaveDialog}
+                      className="h-9 w-9 bg-background/60 relative"
+                    >
+                      <Save size={15} />
+                      {isDirty && (
+                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {savedId ? "Guardar cambios" : "Guardar mapa"}
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        savedMaps.refresh();
+                        setLibraryOpen(true);
+                      }}
+                      className="h-9 w-9 bg-background/60"
+                    >
+                      <FolderOpen size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Mapas guardados</TooltipContent>
+                </Tooltip>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 bg-background/60"
+                      title="Paleta de color"
+                    >
+                      <Palette size={15} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Paleta de color</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(Object.values(PALETTES)).map((p) => (
+                      <DropdownMenuItem
+                        key={p.id}
+                        onClick={() => changePalette(p.id)}
+                        className="flex items-start gap-2 py-2 cursor-pointer"
+                      >
+                        <span
+                          className="w-6 h-6 rounded-md shrink-0 border border-border"
+                          style={{
+                            background: `linear-gradient(135deg, ${p.accent}, ${p.surface})`,
+                          }}
+                        />
+                        <span className="flex-1">
+                          <span className="block text-xs font-semibold">
+                            {p.name}
+                            {palette === p.id && (
+                              <span className="ml-1.5 text-[10px] text-muted-foreground">●</span>
+                            )}
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground leading-tight">
+                            {p.description}
+                          </span>
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
                       onClick={relayout}
                       className="h-9 w-9 bg-background/60"
                     >
@@ -531,7 +748,7 @@ export function VisionBoard() {
               </div>
               <div className="space-y-1">
                 {CATEGORY_ORDER.map((cat) => {
-                  const meta = CATEGORY_META[cat];
+                  const meta = getCategoryMeta(cat, palette);
                   const Icon = ICONS[meta.icon] || Target;
                   const count = stats?.byCat[cat] || 0;
                   const isActive = highlightedCategory === cat;
@@ -622,9 +839,14 @@ export function VisionBoard() {
 
         {/* Canvas */}
         <main className="flex-1 relative overflow-hidden vision-board-bg">
-          {!map && !loading && <EmptyState onPickExample={(ex) => setIdea(ex)} />}
+          {!map && !loading && (
+            <EmptyState
+              onPickExample={(ex) => setIdea(ex)}
+              palette={palette}
+            />
+          )}
 
-          {loading && <LoadingState />}
+          {loading && <LoadingState palette={palette} />}
 
           {error && !loading && (
             <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -681,6 +903,8 @@ export function VisionBoard() {
                     }
                     onSelect={setActiveNodeId}
                     onDragStart={handleNodeDragStart}
+                    onUpdate={updateNode}
+                    palette={palette}
                   />
                 ))}
               </div>
@@ -733,21 +957,21 @@ export function VisionBoard() {
                 <span
                   className="w-9 h-9 rounded-lg flex items-center justify-center"
                   style={{
-                    background: `${CATEGORY_META[activeNode.category].color}22`,
-                    color: CATEGORY_META[activeNode.category].color,
+                    background: `${getCategoryMeta(activeNode.category, palette).color}22`,
+                    color: getCategoryMeta(activeNode.category, palette).color,
                   }}
                 >
                   {(() => {
-                    const Icon = ICONS[CATEGORY_META[activeNode.category].icon] || Target;
+                    const Icon = ICONS[getCategoryMeta(activeNode.category, palette).icon] || Target;
                     return <Icon size={17} />;
                   })()}
                 </span>
                 <div>
                   <div
                     className="text-[10px] uppercase tracking-wider font-semibold"
-                    style={{ color: CATEGORY_META[activeNode.category].color }}
+                    style={{ color: getCategoryMeta(activeNode.category, palette).color }}
                   >
-                    {CATEGORY_META[activeNode.category].labelSingular}
+                    {getCategoryMeta(activeNode.category, palette).labelSingular}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
                     Detalle del nodo
@@ -783,7 +1007,7 @@ export function VisionBoard() {
                     <li key={i} className="text-xs flex gap-2">
                       <span
                         className="mt-1.5 w-1 h-1 rounded-full shrink-0"
-                        style={{ background: CATEGORY_META[activeNode.category].color }}
+                        style={{ background: getCategoryMeta(activeNode.category, palette).color }}
                       />
                       <span className="leading-relaxed text-foreground/80">{b}</span>
                     </li>
@@ -877,7 +1101,7 @@ export function VisionBoard() {
                       >
                         <span
                           className="w-2 h-2 rounded-full"
-                          style={{ background: CATEGORY_META[n.category].color }}
+                          style={{ background: getCategoryMeta(n.category, palette).color }}
                         />
                         <span className="text-xs truncate">{n.title}</span>
                       </button>
@@ -895,6 +1119,7 @@ export function VisionBoard() {
           <PresentationMode
             map={map}
             slide={presoSlide}
+            palette={palette}
             onClose={() => setPresentationMode(false)}
             onPrev={() => setPresoSlide((s) => Math.max(0, s - 1))}
             onNext={() =>
@@ -905,11 +1130,177 @@ export function VisionBoard() {
           />
         )}
       </AnimatePresence>
+
+      {/* Save dialog */}
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {savedId ? "Guardar cambios" : "Guardar mapa visual"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1 block">
+                Título
+              </label>
+              <Input
+                value={saveTitle}
+                onChange={(e) => setSaveTitle(e.target.value)}
+                placeholder="Título del mapa"
+                maxLength={120}
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1 block">
+                Tags (separados por comas)
+              </label>
+              <Input
+                value={saveTags}
+                onChange={(e) => setSaveTags(e.target.value)}
+                placeholder="estrategia, q1-2026, premium"
+              />
+            </div>
+            <div className="text-[11px] text-muted-foreground bg-muted/40 rounded-md p-2">
+              <strong className="text-foreground">Resumen:</strong> {map?.nodes.length || 0} nodos · {map?.apps.length || 0} apps Anclora · paleta {PALETTES[palette].name}
+              {savedId && (
+                <div className="mt-1 text-[10px] text-amber-500">● Actualizarás el mapa guardado existente</div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmSave}
+              className="bg-gradient-to-r from-[#1dab89] to-[#6C48C5] text-white border-0"
+            >
+              <Save size={14} className="mr-1" />
+              {savedId ? "Actualizar" : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Library dialog */}
+      <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bookmark size={16} /> Mapas guardados
+              <span className="text-xs text-muted-foreground font-normal">
+                ({savedMaps.maps.length})
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto custom-scroll -mx-2 px-2">
+            {savedMaps.loading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Cargando…
+              </div>
+            ) : savedMaps.maps.length === 0 ? (
+              <div className="py-12 text-center">
+                <Bookmark size={32} className="mx-auto mb-2 text-muted-foreground/50" />
+                <div className="text-sm text-muted-foreground">
+                  Aún no tienes mapas guardados.
+                </div>
+                <div className="text-xs text-muted-foreground/70 mt-1">
+                  Genera un mapa y pulsa el botón <Save size={11} className="inline" /> para guardarlo.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {savedMaps.maps.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`group flex items-start gap-3 p-3 rounded-lg border transition cursor-pointer ${
+                      savedId === m.id
+                        ? "border-[#1dab89] bg-[#1dab89]/8"
+                        : "border-border/50 bg-background/40 hover:bg-muted/40"
+                    }`}
+                    onClick={() => loadMapById(m.id)}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStarById(m.id, m.starred);
+                      }}
+                      className="mt-0.5 shrink-0"
+                      title={m.starred ? "Quitar estrella" : "Marcar como favorito"}
+                    >
+                      <Star
+                        size={16}
+                        className={
+                          m.starred
+                            ? "fill-[#D4AF37] text-[#D4AF37]"
+                            : "text-muted-foreground/40 group-hover:text-muted-foreground"
+                        }
+                      />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold truncate">{m.title}</span>
+                        {savedId === m.id && (
+                          <Badge variant="secondary" className="text-[9px] py-0">actual</Badge>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {m.summary}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground/70 flex-wrap">
+                        <span>{m.nodesCount} nodos</span>
+                        <span>·</span>
+                        <span>{m.appsCount} apps</span>
+                        <span>·</span>
+                        <span className="capitalize">{PALETTES[m.palette as PaletteId]?.name || m.palette}</span>
+                        <span>·</span>
+                        <span>{new Date(m.updatedAt).toLocaleDateString("es-ES")}</span>
+                        {m.tags.length > 0 && (
+                          <>
+                            <span>·</span>
+                            <div className="flex gap-1 flex-wrap">
+                              {m.tags.slice(0, 3).map((t) => (
+                                <span
+                                  key={t}
+                                  className="px-1.5 py-0 rounded bg-muted/60 text-[9px]"
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteMapById(m.id, m.title);
+                      }}
+                      className="shrink-0 p-1.5 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition opacity-0 group-hover:opacity-100"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function EmptyState({ onPickExample }: { onPickExample: (ex: string) => void }) {
+function EmptyState({
+  onPickExample,
+  palette = "anclora",
+}: {
+  onPickExample: (ex: string) => void;
+  palette?: PaletteId;
+}) {
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6 overflow-y-auto custom-scroll">
       <div className="max-w-3xl w-full text-center">
@@ -936,7 +1327,7 @@ function EmptyState({ onPickExample }: { onPickExample: (ex: string) => void }) 
           className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8 max-w-2xl mx-auto"
         >
           {CATEGORY_ORDER.filter((c) => c !== "idea").map((cat) => {
-            const meta = CATEGORY_META[cat];
+            const meta = getCategoryMeta(cat, palette);
             const Icon = ICONS[meta.icon] || Target;
             return (
               <div
@@ -984,7 +1375,7 @@ function EmptyState({ onPickExample }: { onPickExample: (ex: string) => void }) 
   );
 }
 
-function LoadingState() {
+function LoadingState({ palette = "anclora" }: { palette?: PaletteId }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center p-8">
       <div className="text-center">
@@ -1000,7 +1391,7 @@ function LoadingState() {
           Tejiendo tu mapa visual…
         </div>
         <div className="text-sm text-muted-foreground max-w-sm">
-          Analizando tu idea, conectando con el ecosistema Anclora y generando objetivos, pasos, riesgos, herramientas y costes.
+          Analizando tu idea, conectando con el ecosistema Anclora y generando objetivos, pasos, riesgos, herramientas, costes, KPIs, stakeholders y timeline.
         </div>
         <div className="mt-5 flex justify-center gap-1.5">
           {CATEGORY_ORDER.map((c) => (
@@ -1008,7 +1399,7 @@ function LoadingState() {
               key={c}
               className="w-1.5 h-1.5 rounded-full ai-pulse"
               style={{
-                background: CATEGORY_META[c].color,
+                background: getCategoryMeta(c, palette).color,
                 animationDelay: `${Math.random() * 0.5}s`,
               }}
             />
@@ -1022,19 +1413,21 @@ function LoadingState() {
 function PresentationMode({
   map,
   slide,
+  palette,
   onClose,
   onPrev,
   onNext,
 }: {
   map: VisionMap;
   slide: number;
+  palette: PaletteId;
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
 }) {
   const slides = ["idea", ...CATEGORY_ORDER.filter((c) => c !== "idea")];
   const currentCat = slides[slide] as NodeCategory;
-  const meta = CATEGORY_META[currentCat];
+  const meta = getCategoryMeta(currentCat, palette);
   const Icon = ICONS[meta.icon] || Target;
   const nodes = map.nodes.filter((n) => n.category === currentCat);
   const ideaNode = map.nodes.find((n) => n.category === "idea");

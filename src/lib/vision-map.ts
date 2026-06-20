@@ -8,7 +8,10 @@ export type NodeCategory =
   | "tool"
   | "cost"
   | "priority"
-  | "next";
+  | "next"
+  | "kpi"
+  | "stakeholder"
+  | "timeline";
 
 export type Priority = "alta" | "media" | "baja";
 
@@ -29,6 +32,20 @@ export interface VisionNode {
   time?: string;
   /** Optional owner / responsible */
   owner?: string;
+  /** Optional target value for KPIs */
+  target?: string;
+  /** Optional current value for KPIs */
+  current?: string;
+  /** Optional unit for KPIs (%, €, count...) */
+  unit?: string;
+  /** Optional stakeholder role (Sponsor, Owner, Contributor, External) */
+  role?: string;
+  /** Optional stakeholder contact */
+  contact?: string;
+  /** Optional timeline date (ISO string or quarter label) */
+  date?: string;
+  /** Optional timeline milestone flag */
+  milestone?: boolean;
   /** Position assigned by layout engine */
   x: number;
   y: number;
@@ -49,9 +66,80 @@ export interface VisionMap {
   connections: VisionConnection[];
   apps: string[];
   generatedAt: string;
+  /** Optional palette identifier */
+  palette?: PaletteId;
 }
 
-export const CATEGORY_META: Record<
+export type PaletteId = "anclora" | "nexus" | "premium";
+
+/** Per-palette color overrides for each category. */
+export interface Palette {
+  id: PaletteId;
+  name: string;
+  description: string;
+  /** Background accent colors */
+  background: string;
+  surface: string;
+  accent: string;
+  /** Per-category color overrides (keyed by NodeCategory) */
+  categoryColors: Partial<Record<NodeCategory, string>>;
+}
+
+export const PALETTES: Record<PaletteId, Palette> = {
+  anclora: {
+    id: "anclora",
+    name: "Anclora Mint",
+    description: "Paleta canónica del ecosistema Anclora (mint + navy + gold).",
+    background: "#0a0f1f",
+    surface: "#0F1629",
+    accent: "#1dab89",
+    categoryColors: {},
+  },
+  nexus: {
+    id: "nexus",
+    name: "Nexus Gold",
+    description: "Tema dark de Anclora Nexus con acento oro y deep indigo.",
+    background: "#0F1629",
+    surface: "#141C3A",
+    accent: "#D4AF37",
+    categoryColors: {
+      idea: "#D4AF37",
+      objective: "#F4E4BC",
+      priority: "#B8902E",
+      step: "#7BA7D9",
+      next: "#E6C870",
+      risk: "#FF6B5B",
+      tool: "#C9A961",
+      cost: "#FFB8A8",
+      kpi: "#9FE8B8",
+      stakeholder: "#A8B8E8",
+      timeline: "#F0D67C",
+    },
+  },
+  premium: {
+    id: "premium",
+    name: "Premium Estate",
+    description: "Estilo editorial premium (rosa coral + violeta + crema).",
+    background: "#1A0E1F",
+    surface: "#2A1530",
+    accent: "#ec4899",
+    categoryColors: {
+      idea: "#ec4899",
+      objective: "#F472B6",
+      priority: "#A855F7",
+      step: "#8B5CF6",
+      next: "#FBBF24",
+      risk: "#EF4444",
+      tool: "#D4AF37",
+      cost: "#FB7185",
+      kpi: "#34D399",
+      stakeholder: "#22D3EE",
+      timeline: "#FCD34D",
+    },
+  },
+};
+
+const BASE_CATEGORY_META: Record<
   NodeCategory,
   {
     label: string;
@@ -117,7 +205,40 @@ export const CATEGORY_META: Record<
     icon: "Rocket",
     description: "Acciones inmediatas y de corto plazo.",
   },
+  kpi: {
+    label: "KPIs",
+    labelSingular: "KPI",
+    color: "#10b981",
+    icon: "TrendingUp",
+    description: "Métricas clave y targets medibles para validar el éxito.",
+  },
+  stakeholder: {
+    label: "Stakeholders",
+    labelSingular: "Stakeholder",
+    color: "#06b6d4",
+    icon: "Users",
+    description: "Personas, equipos o entidades involucradas o impactadas.",
+  },
+  timeline: {
+    label: "Timeline",
+    labelSingular: "Hito",
+    color: "#8b5cf6",
+    icon: "Calendar",
+    description: "Hitos y fechas clave del plan de ejecución.",
+  },
 };
+
+export function getCategoryMeta(
+  cat: NodeCategory,
+  palette: PaletteId = "anclora"
+) {
+  const base = BASE_CATEGORY_META[cat];
+  const override = PALETTES[palette]?.categoryColors?.[cat];
+  return { ...base, color: override || base.color };
+}
+
+/** @deprecated Use getCategoryMeta for palette-aware lookups. */
+export const CATEGORY_META = BASE_CATEGORY_META;
 
 export const CATEGORY_ORDER: NodeCategory[] = [
   "idea",
@@ -128,6 +249,9 @@ export const CATEGORY_ORDER: NodeCategory[] = [
   "risk",
   "tool",
   "cost",
+  "kpi",
+  "stakeholder",
+  "timeline",
 ];
 
 /**
@@ -147,14 +271,19 @@ export function layoutVisionMap(
   const ideaNode = nodes.find((n) => n.category === "idea");
   const otherNodes = nodes.filter((n) => n.category !== "idea");
 
-  // Group by category
+  // Group by category — preserve insertion order from CATEGORY_ORDER
   const byCategory: Record<string, VisionNode[]> = {};
   for (const n of otherNodes) {
     if (!byCategory[n.category]) byCategory[n.category] = [];
     byCategory[n.category].push(n);
   }
 
-  const categoriesPresent = Object.keys(byCategory);
+  // Order categories according to CATEGORY_ORDER for stable layout
+  const categoriesPresent = Object.keys(byCategory).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a as NodeCategory);
+    const ib = CATEGORY_ORDER.indexOf(b as NodeCategory);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
   const result: VisionNode[] = [];
 
   if (ideaNode) {
@@ -162,8 +291,8 @@ export function layoutVisionMap(
   }
 
   // Distribute categories around the idea node in a circle
-  const radiusX = canvasWidth * 0.32;
-  const radiusY = canvasHeight * 0.32;
+  const radiusX = canvasWidth * 0.34;
+  const radiusY = canvasHeight * 0.34;
   const startAngle = -Math.PI / 2; // start at top
 
   categoriesPresent.forEach((cat, catIdx) => {
@@ -172,7 +301,7 @@ export function layoutVisionMap(
     const groupSize = catNodes.length;
 
     // spread nodes within a small arc around the category center
-    const spread = Math.min(0.5, 0.18 + groupSize * 0.06);
+    const spread = Math.min(0.55, 0.18 + groupSize * 0.06);
 
     catNodes.forEach((node, nodeIdx) => {
       const t = groupSize === 1 ? 0 : nodeIdx / (groupSize - 1) - 0.5;
@@ -208,10 +337,16 @@ export function autoConnect(nodes: VisionNode[]): VisionConnection[] {
   const tools = byCat("tool");
   const costs = byCat("cost");
   const priorities = byCat("priority");
+  const kpis = byCat("kpi");
+  const stakeholders = byCat("stakeholder");
+  const timelines = byCat("timeline");
 
   if (idea) {
     objectives.forEach((o) => conns.push(createConnection(idea.id, o.id)));
     priorities.forEach((p) => conns.push(createConnection(idea.id, p.id, "prioriza")));
+    stakeholders.forEach((s) => conns.push(createConnection(idea.id, s.id, "involucra")));
+    kpis.forEach((k) => conns.push(createConnection(idea.id, k.id, "mide")));
+    timelines.forEach((t) => conns.push(createConnection(idea.id, t.id, "planifica")));
   }
 
   objectives.forEach((o, i) => {
@@ -221,6 +356,10 @@ export function autoConnect(nodes: VisionNode[]): VisionConnection[] {
     if (r) conns.push(createConnection(o.id, r.id, "mitiga"));
     const c = costs[i % Math.max(costs.length, 1)];
     if (c) conns.push(createConnection(o.id, c.id, "financia"));
+    const k = kpis[i % Math.max(kpis.length, 1)];
+    if (k) conns.push(createConnection(o.id, k.id, "mide"));
+    const t = timelines[i % Math.max(timelines.length, 1)];
+    if (t) conns.push(createConnection(o.id, t.id, "fecha"));
   });
 
   steps.forEach((s, i) => {

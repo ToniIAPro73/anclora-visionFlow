@@ -26,6 +26,13 @@ interface RawNode {
   appSlug?: string;
   time?: string;
   owner?: string;
+  target?: string;
+  current?: string;
+  unit?: string;
+  role?: string;
+  contact?: string;
+  date?: string;
+  milestone?: boolean;
 }
 
 interface LLMResponse {
@@ -54,6 +61,9 @@ Tu trabajo: a partir de la idea del usuario, generar un mapa visual completo con
 - "risk" (3-5 riesgos con bullets de mitigación)
 - "tool" (3-6 herramientas — prioriza SIEMPRE apps del ecosistema Anclora cuando encajen, usa el slug exacto; puedes añadir herramientas externas solo si son imprescindibles)
 - "cost" (2-4 partidas de coste con número en EUR en campo cost; mezcla one-shot y recurring)
+- "kpi" (2-4 KPIs medibles con target, current y unit; ej. unit="%" target="85" current="42")
+- "stakeholder" (3-5 stakeholders con role: "Sponsor" | "Owner" | "Contributor" | "External" y contact opcional)
+- "timeline" (3-5 hitos cronológicos con date en formato "Q1 2026" o "2026-03" y milestone: true para hitos críticos)
 
 REGLAS CRÍTICAS:
 1. Responde SIEMPRE en español.
@@ -63,6 +73,8 @@ REGLAS CRÍTICAS:
 5. Solo incluye appSlug cuando la herramienta sea una app del catálogo.
 6. El summary debe tener entre 40 y 80 palabras, en tono profesional, explicando el enfoque del mapa.
 7. NO inventes apps Anclora que no existan en el catálogo.
+8. Para KPIs, incluye siempre target, current y unit para que se vean las brechas.
+9. Para timeline, ordena los hitos cronológicamente (del más cercano al más lejano).
 
 CATÁLOGO DEL ECOSISTEMA ANCLORA:
 ${appCatalog}
@@ -79,7 +91,10 @@ FORMATO DE SALIDA: JSON válido, sin markdown, sin explicación, estrictamente:
     { "category": "next", "title": "...", "description": "..." },
     { "category": "risk", "title": "...", "description": "...", "bullets": ["mitigación 1", "mitigación 2"] },
     { "category": "tool", "title": "Anclora Nexus", "description": "...", "appSlug": "nexus" },
-    { "category": "cost", "title": "...", "description": "...", "cost": 4500 }
+    { "category": "cost", "title": "...", "description": "...", "cost": 4500 },
+    { "category": "kpi", "title": "Conversión premium", "description": "...", "target": "85", "current": "42", "unit": "%" },
+    { "category": "stakeholder", "title": "Equipo energético", "description": "...", "role": "Owner", "contact": "energia@anclora.es" },
+    { "category": "timeline", "title": "Lanzamiento piloto", "description": "...", "date": "Q1 2026", "milestone": true }
   ]
 }`;
 }
@@ -115,7 +130,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2400,
+      max_tokens: 3200,
     });
 
     const content = completion.choices?.[0]?.message?.content ?? "";
@@ -147,6 +162,9 @@ export async function POST(req: NextRequest) {
       "cost",
       "priority",
       "next",
+      "kpi",
+      "stakeholder",
+      "timeline",
     ];
 
     const cleanNodes: RawNode[] = (parsed.nodes || [])
@@ -165,6 +183,13 @@ export async function POST(req: NextRequest) {
         appSlug: n.appSlug,
         time: n.time ? String(n.time).slice(0, 40) : undefined,
         owner: n.owner ? String(n.owner).slice(0, 40) : undefined,
+        target: n.target ? String(n.target).slice(0, 40) : undefined,
+        current: n.current ? String(n.current).slice(0, 40) : undefined,
+        unit: n.unit ? String(n.unit).slice(0, 12) : undefined,
+        role: n.role ? String(n.role).slice(0, 40) : undefined,
+        contact: n.contact ? String(n.contact).slice(0, 80) : undefined,
+        date: n.date ? String(n.date).slice(0, 30) : undefined,
+        milestone: typeof n.milestone === "boolean" ? n.milestone : undefined,
       }));
 
     // Ensure exactly one idea node
@@ -214,6 +239,7 @@ export async function POST(req: NextRequest) {
       connections,
       apps,
       generatedAt: new Date().toISOString(),
+      palette: "anclora",
     };
 
     return NextResponse.json(visionMap);

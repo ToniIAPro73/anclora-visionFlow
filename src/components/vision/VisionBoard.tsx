@@ -1595,76 +1595,92 @@ function EmptyState({
   onPickExample: (ex: string) => void;
   palette?: PaletteId;
 }) {
+  const visibleCats = CATEGORY_ORDER.filter((c) => c !== "idea");
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-6 overflow-y-auto custom-scroll">
-      <div className="max-w-3xl w-full text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1dab89] via-[#6C48C5] to-[#D4AF37] mb-4 float">
-            <Eye size={28} className="text-white" strokeWidth={2.4} />
+    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-4xl flex flex-col items-center text-center"
+      >
+        {/* Brand + tagline row — compact premium header */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-gradient-to-br from-[#1dab89] via-[#6C48C5] to-[#D4AF37] float shrink-0">
+            <div className="absolute inset-[3px] rounded-lg bg-[#0a0f1f] flex items-center justify-center">
+              <Eye size={16} className="text-white" strokeWidth={2.4} />
+            </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
-            Convierte cualquier idea en un <span className="gradient-text">mapa visual inteligente</span>
-          </h1>
-          <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-            AncloraVisionFlow transforma ideas, proyectos o problemas del ecosistema Anclora Group en un tablero interactivo con objetivos, pasos, riesgos, herramientas, costes, prioridades y próximos pasos — generados automáticamente.
-          </p>
-        </motion.div>
+          <div className="leading-tight text-left">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 font-semibold">
+              Anclora Group
+            </div>
+            <div className="text-lg font-bold tracking-tight">
+              Anclora<span className="gradient-text">VisionFlow</span>
+            </div>
+          </div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-8 max-w-2xl mx-auto"
-        >
-          {CATEGORY_ORDER.filter((c) => c !== "idea").map((cat) => {
+        {/* Hero headline — single line, big and bold */}
+        <h1 className="text-2xl md:text-[2rem] lg:text-[2.2rem] font-bold tracking-tight leading-[1.1] mb-2 max-w-3xl">
+          Convierte cualquier idea en un{" "}
+          <span className="gradient-text">mapa visual inteligente</span>
+        </h1>
+        <p className="text-xs md:text-sm text-muted-foreground max-w-2xl mb-4 leading-relaxed">
+          Transforma ideas, proyectos o problemas del ecosistema Anclora en un tablero interactivo con
+          objetivos, pasos, riesgos, herramientas, costes, prioridades, KPIs, stakeholders y timeline — generados automáticamente.
+        </p>
+
+        {/* Category chips — compact horizontal strip */}
+        <div className="flex items-center justify-center flex-wrap gap-1.5 mb-5 max-w-3xl">
+          {visibleCats.map((cat) => {
             const meta = getCategoryMeta(cat, palette);
             const Icon = ICONS[meta.icon] || Target;
             return (
-              <div
+              <span
                 key={cat}
-                className="glass rounded-lg p-3 border border-border/50 text-left"
+                className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full border border-border/60 bg-background/40"
+                title={meta.description}
               >
-                <span
-                  className="inline-flex w-7 h-7 rounded-md items-center justify-center mb-1.5"
-                  style={{ background: `${meta.color}22`, color: meta.color }}
-                >
-                  <Icon size={14} />
-                </span>
-                <div className="text-xs font-semibold">{meta.label}</div>
-                <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                  {meta.description}
-                </div>
-              </div>
+                <Icon size={10} style={{ color: meta.color }} />
+                <span className="text-foreground/80">{meta.label}</span>
+              </span>
             );
           })}
-        </motion.div>
+        </div>
 
+        {/* Examples — compact two-column grid */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
+          transition={{ duration: 0.4, delay: 0.15 }}
+          className="w-full max-w-3xl"
         >
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2 font-semibold text-center">
             Prueba con un ejemplo
           </div>
-          <div className="flex flex-col gap-1.5 max-w-xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             {EXAMPLE_IDEAS.map((ex, i) => (
               <button
                 key={i}
                 onClick={() => onPickExample(ex)}
-                className="text-left text-sm px-3 py-2 rounded-md bg-muted/40 hover:bg-muted border border-border/50 transition flex items-start gap-2"
+                className="text-left text-xs px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/60 border border-border/50 transition flex items-start gap-2 group"
               >
-                <Sparkles size={13} className="mt-0.5 text-[#6C48C5] shrink-0" />
-                <span className="text-foreground/80">{ex}</span>
+                <Sparkles
+                  size={12}
+                  className="mt-0.5 text-[#6C48C5] shrink-0 group-hover:scale-110 transition"
+                />
+                <span className="text-foreground/80 line-clamp-2 leading-snug">{ex}</span>
               </button>
             ))}
           </div>
         </motion.div>
-      </div>
+
+        {/* Footer hint */}
+        <div className="mt-4 text-[10px] text-muted-foreground/50">
+          Pulsa <kbd className="font-mono px-1 py-0.5 rounded bg-muted/60 border border-border/40">Enter</kbd> para generar · <kbd className="font-mono px-1 py-0.5 rounded bg-muted/60 border border-border/40">P</kbd> presentación · <kbd className="font-mono px-1 py-0.5 rounded bg-muted/60 border border-border/40">±/0</kbd> zoom
+        </div>
+      </motion.div>
     </div>
   );
 }

@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import type { VisionMap } from "@/lib/vision-map";
+
+const UpdateMapSchema = z.object({
+  title: z.string().min(1).max(200).trim().optional(),
+  summary: z.string().max(1000).optional(),
+  nodesJson: z.string().min(2).optional(),
+  connectionsJson: z.string().optional(),
+  appsJson: z.string().optional(),
+  palette: z.enum(["anclora", "nexus", "premium"]).optional(),
+  tags: z.string().max(500).optional(),
+  starred: z.boolean().optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -36,6 +48,36 @@ export async function GET(
   } catch (err) {
     console.error("load map error:", err);
     return NextResponse.json({ error: "No se pudo cargar el mapa." }, { status: 500 });
+  }
+}
+
+// PATCH /api/vision/maps/[id] — update map fields
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const parseResult = UpdateMapSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "Datos de actualización inválidos." },
+        { status: 400 }
+      );
+    }
+    const data = parseResult.data;
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
+    }
+    const updated = await db.visionMapRecord.update({
+      where: { id },
+      data,
+    });
+    return NextResponse.json({ id: updated.id, updatedAt: updated.updatedAt });
+  } catch (err) {
+    console.error("patch map error:", err);
+    return NextResponse.json({ error: "No se pudo actualizar el mapa." }, { status: 500 });
   }
 }
 

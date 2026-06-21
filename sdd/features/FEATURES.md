@@ -29,8 +29,8 @@
 | AVF-GOV-002 | Ciclo de vida de propuesta (estados + transiciones) | TASK-1003 | TODO |
 | AVF-GOV-003 | Handoff a Anclora Nexus con confirmación humana | TASK-1004 | BLOCKED (DEC-NEXUS-001) |
 | AVF-GOV-004 | Política LLM por workspace | TASK-1005 | TODO |
-| AVF-GOV-005 | Versionado y trazabilidad del prompt | TASK-1006 | TODO |
-| AVF-GOV-006 | Rate limiting en endpoint de generación | TASK-1007 | TODO |
+| AVF-GOV-005 | Versionado y trazabilidad del prompt | TASK-1006 | DONE |
+| AVF-GOV-006 | Rate limiting en endpoint de generación (proxy confiable validado) | TASK-1007 | DONE |
 | AVF-GOV-007 | Suite de tests (Vitest + RTL) | TASK-1008 | TODO |
 | AVF-GOV-008 | CI/CD con GitHub Actions | TASK-1009 | TODO |
 | AVF-GOV-009 | Accesibilidad WCAG 2.1 AA | TASK-1010 | TODO |

@@ -1,19 +1,34 @@
 import { describe, it, expect } from "vitest";
+import {
+  createGenerationReceipt,
+  getVerifiedGenerationMetadata,
+  verifyGenerationReceipt,
+} from "./generation-receipt";
 import { PROMPT_VERSION, llmModel } from "./llm-client";
+import type { VisionMap } from "./vision-map";
 
-// Helper that replicates the server-authoritative genMeta logic from maps/route.ts
-function buildServerAuthoritativeGenMeta(clientMap: {
-  promptVersion?: unknown;
-  llmModel?: unknown;
-  tokensUsed?: unknown;
-}) {
+const TEST_SECRET = "test-generation-receipt-secret";
+const TEST_NOW = Date.parse("2026-06-21T08:00:00.000Z");
+
+function buildMap(overrides: Partial<VisionMap> = {}): VisionMap {
   return {
-    promptVersion: PROMPT_VERSION,
-    llmModel,
-    tokensUsed:
-      typeof clientMap.tokensUsed === "number" && clientMap.tokensUsed > 0
-        ? clientMap.tokensUsed
-        : null,
+    idea: "Automatizar auditoria de propuestas",
+    summary: "Mapa generado para auditar propuestas con trazabilidad operativa.",
+    nodes: [
+      {
+        id: "node-1",
+        category: "idea",
+        title: "Auditoria verificable",
+        description: "Centralizar evidencias de generacion y revision.",
+        x: 0,
+        y: 0,
+      },
+    ],
+    connections: [],
+    apps: ["nexus"],
+    generatedAt: "2026-06-21T08:00:00.000Z",
+    palette: "anclora",
+    ...overrides,
   };
 }
 
@@ -93,31 +108,44 @@ describe("VisionMap generation metadata shape", () => {
 });
 
 describe("generation metadata persistence contract", () => {
-  it("genMeta object only carries the three allowed fields", () => {
-    const promptVersion = PROMPT_VERSION;
-    const model = llmModel;
-    const tokensUsed: number | null = 800;
-
-    const genMeta = {
-      promptVersion: typeof promptVersion === "string" ? promptVersion : null,
-      llmModel: typeof model === "string" ? model : null,
-      tokensUsed: typeof tokensUsed === "number" ? tokensUsed : null,
-    };
-
+  it("verified metadata object only carries the three persisted fields", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 800 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const genMeta = getVerifiedGenerationMetadata(map, receipt, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    });
     const keys = Object.keys(genMeta);
     expect(keys).toEqual(["promptVersion", "llmModel", "tokensUsed"]);
   });
 
-  it("genMeta does not persist prompt text or API keys", () => {
-    const genMeta = {
-      promptVersion: PROMPT_VERSION,
-      llmModel,
-      tokensUsed: 500,
-    };
-    const serialized = JSON.stringify(genMeta);
+  it("receipt payload does not include prompt text, API keys, or user content", () => {
+    const map = buildMap({ idea: "Cliente confidencial ACME" });
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 500 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const payload = JSON.parse(Buffer.from(receipt.split(".")[1], "base64url").toString("utf8"));
+    const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain("Eres el motor");
     expect(serialized).not.toContain("sk-");
     expect(serialized).not.toContain("OPENROUTER_API_KEY");
+    expect(serialized).not.toContain("Cliente confidencial ACME");
+    expect(Object.keys(payload).sort()).toEqual([
+      "expiresAt",
+      "issuedAt",
+      "llmModel",
+      "mapHash",
+      "nonce",
+      "promptVersion",
+      "tokensUsed",
+      "v",
+    ]);
   });
 
   it("tokensUsed maps to null when completion.usage is absent", () => {
@@ -133,42 +161,104 @@ describe("generation metadata persistence contract", () => {
   });
 });
 
-describe("server-authoritative metadata protection (REQ-AI-002)", () => {
-  it("ignores forged promptVersion from client payload", () => {
-    const forgedPayload = { promptVersion: "v99.9.9", llmModel, tokensUsed: 500 };
-    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
-    expect(meta.promptVersion).toBe(PROMPT_VERSION);
-    expect(meta.promptVersion).not.toBe("v99.9.9");
+describe("verified generation receipt protection (REQ-AI-002)", () => {
+  it("ignores payload values that try to forge all three metadata fields", () => {
+    const generatedMap = buildMap();
+    const receipt = createGenerationReceipt(
+      generatedMap,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 321 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const map = buildMap({
+      promptVersion: "v99.9.9",
+      llmModel: "gpt-4o",
+      tokensUsed: 999999,
+      generationReceipt: receipt,
+    });
+    const meta = getVerifiedGenerationMetadata(map, map.generationReceipt, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 321 });
   });
 
-  it("ignores forged llmModel from client payload", () => {
-    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel: "gpt-4o", tokensUsed: 500 };
-    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
-    expect(meta.llmModel).toBe(llmModel);
-    expect(meta.llmModel).not.toBe("gpt-4o");
+  it("accepts a valid server-issued receipt", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const meta = getVerifiedGenerationMetadata(map, receipt, {
+      now: TEST_NOW + 60_000,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 });
   });
 
-  it("rejects negative tokensUsed from client payload", () => {
-    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: -1 };
-    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
-    expect(meta.tokensUsed).toBeNull();
+  it("rejects an altered receipt", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const tamperedReceipt = receipt.replace(/.$/, receipt.endsWith("a") ? "b" : "a");
+    expect(verifyGenerationReceipt(map, tamperedReceipt, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    })).toBeNull();
   });
 
-  it("rejects zero tokensUsed from client payload", () => {
-    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 0 };
-    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
-    expect(meta.tokensUsed).toBeNull();
+  it("rejects an expired receipt", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 },
+      { now: TEST_NOW, ttlMs: 1_000, secret: TEST_SECRET }
+    );
+    const meta = getVerifiedGenerationMetadata(map, receipt, {
+      now: TEST_NOW + 1_001,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: null, llmModel: null, tokensUsed: null });
   });
 
-  it("rejects string tokensUsed injection from client", () => {
-    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: "99999" };
-    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
-    expect(meta.tokensUsed).toBeNull();
+  it("treats maps saved without a receipt as imported or unverified", () => {
+    const map = buildMap();
+    const meta = getVerifiedGenerationMetadata(map, undefined, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: null, llmModel: null, tokensUsed: null });
   });
 
-  it("accepts valid positive tokensUsed from client (client-reported, not verified)", () => {
-    const payload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 };
-    const meta = buildServerAuthoritativeGenMeta(payload);
-    expect(meta.tokensUsed).toBe(1234);
+  it("persists null tokensUsed when provider usage.total_tokens is absent", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: null },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const meta = getVerifiedGenerationMetadata(map, receipt, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: PROMPT_VERSION, llmModel, tokensUsed: null });
+  });
+
+  it("rejects a valid receipt when the map content no longer matches", () => {
+    const map = buildMap();
+    const receipt = createGenerationReceipt(
+      map,
+      { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 },
+      { now: TEST_NOW, secret: TEST_SECRET }
+    );
+    const editedMap = buildMap({ summary: "Resumen alterado por el cliente." });
+    const meta = getVerifiedGenerationMetadata(editedMap, receipt, {
+      now: TEST_NOW,
+      secret: TEST_SECRET,
+    });
+    expect(meta).toEqual({ promptVersion: null, llmModel: null, tokensUsed: null });
   });
 });

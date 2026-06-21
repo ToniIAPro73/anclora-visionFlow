@@ -81,3 +81,33 @@ Stage Summary:
   1. Header compacto: eliminados los chips de ejemplos del header (65px en lugar de ~110px). Los ejemplos siguen en la sección central.
   2. Importar/Exportar JSON: 2 botones nuevos en toolbar (Download/Upload). Export serializa todo el mapa con metadatos. Import valida estructura, categorías y coordenadas, permite cargar mapas exportados por cualquier instancia.
   3. Filtros avanzados en biblioteca: búsqueda full-text (título/idea/resumen/tags), filtro por paleta (4 opciones), filtro por tag (hasta 8 únicos), toggle Favoritos, estado vacío con "Limpiar filtros", contador "X de Y".
+
+---
+Task ID: v5
+Agent: Super Z (main)
+Task: Corregir error 502 "JSON.parse: unexpected character" al generar un mapa. El preview gateway corta la conexión a ~30s.
+
+Work Log:
+- Diagnóstico: medí el tiempo real del endpoint /api/vision/generate → 31.5s. El preview gateway (preview-chat-...space-z.ai) tiene un timeout de ~30s, devolviendo HTML "502 Bad Gateway" que el cliente intentaba parsear como JSON → "unexpected character at line 1 column 1".
+- Causa raíz adicional: el LLM a veces envolvía la respuesta en markdown ```json ... ``` y otras truncaba el JSON al quedarse sin max_tokens, produciendo JSON inválido que generaba 502 desde el backend.
+- Solución backend (route.ts):
+  1. Compacté el system prompt (~60% más corto): reduje el catálogo de 10 apps a 6, simplifiqué las reglas, usé rangos fijos de nodos por categoría (en lugar de "3-5" ahora "3").
+  2. Reduje max_tokens de 3200 a 2400 y temperature de 0.7 a 0.6.
+  3. Añadí 4 estrategias de parsing JSON: strip markdown code fences, find first/last brace, JSON.parse directo, y función repairTruncatedJson() que cierra strings/arrays/objects abiertos cuando el LLM se queda sin tokens.
+  4. Mejoré el logging: ya no logueo el contenido completo de la respuesta (que causaba el 502 colateral), solo el mensaje de error.
+  5. Añadí log con tiempo transcurrido para monitoring.
+- Solución cliente (VisionBoard.tsx):
+  1. Detecto respuestas no-JSON (502/504 del gateway) comprobando el header Content-Type antes de llamar res.json().
+  2. Mensajes de error específicos para 502/504 ("servidor tardó demasiado") vs otros errores HTTP.
+  3. Validación post-respuesta: si data.nodes no es array o está vacío, muestro error en lugar de cargar un mapa roto.
+  4. Toast de éxito ahora incluye el número de nodos generados.
+- Verificación:
+  * 3 runs con curl: 16.4s, 22.4s, 23.8s — todos < 30s, todos HTTP 200, 29 nodos cada uno.
+  * Test con Agent Browser: input "Lanzar asesoría premium" → mapa generado en 24.1s con 11 categorías (Idea 1, Objetivos 3, Prioridades 2, Pasos 4, Próximos 2, Riesgos 3, Herramientas 3, Costes 2, KPIs 3, Stakeholders 3, Timeline 3 = 29 nodos).
+  * Lint sin errores, sin errores de runtime.
+
+Stage Summary:
+- Error 502 corregido. La generación ahora tarda 16-24s (antes 31-43s), siempre por debajo del timeout del gateway.
+- JSON parsing robusto: maneja markdown fences, JSON truncado, y respuestas con texto extra.
+- Cliente maneja gracefulmente errores 502/504 del gateway con mensajes claros en español.
+- 29 nodos en 11 categorías generados consistentemente en cada run.

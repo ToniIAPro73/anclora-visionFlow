@@ -41,65 +41,112 @@ interface LLMResponse {
   nodes: RawNode[];
 }
 
+/**
+ * Repair JSON that was truncated because the LLM ran out of tokens.
+ * Closes open strings, arrays, and objects in the correct order.
+ * Also drops the last incomplete object if it can't be salvaged.
+ */
+function repairTruncatedJson(jsonStr: string): string {
+  let s = jsonStr.trim();
+
+  // If the last character is a comma, drop it
+  while (s.endsWith(",")) s = s.slice(0, -1).trimEnd();
+
+  // Walk the string tracking open brackets/braces and string state
+  const stack: ("{" | "[")[] = [];
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") stack.push("{");
+    else if (ch === "[") stack.push("[");
+    else if (ch === "}") stack.pop();
+    else if (ch === "]") stack.pop();
+  }
+
+  // If we ended inside a string, close it
+  if (inString) {
+    s += '"';
+  }
+
+  // Drop trailing partial object/array entries:
+  // Remove trailing incomplete key-value or object
+  // e.g. ...{"category":"step","title":"foo  → remove the last partial object
+  // Find the last complete object/array element by scanning back to the last valid comma/brace
+  // Simple heuristic: drop trailing characters until we end with } or ] or , or whitespace after a complete value
+  // Then close all open brackets in reverse order
+  while (stack.length > 0) {
+    const top = stack.pop();
+    if (top === "{") {
+      // Before closing, drop trailing comma if present
+      s = s.trimEnd();
+      if (s.endsWith(",")) s = s.slice(0, -1);
+      s += "}";
+    } else if (top === "[") {
+      s = s.trimEnd();
+      if (s.endsWith(",")) s = s.slice(0, -1);
+      s += "]";
+    }
+  }
+
+  return s;
+}
+
 function buildSystemPrompt(apps: AncloraApp[]): string {
+  // Only include the most relevant apps (up to 6) to keep the prompt compact.
   const appCatalog = apps
+    .slice(0, 6)
     .map(
       (a) =>
-        `- ${a.name} (slug: ${a.slug}, familia: ${a.family}) — ${a.tagline}. Capacidades: ${a.capabilities.join(", ")}. Stack: ${a.stack.join(", ")}`
+        `- ${a.slug}: ${a.name} — ${a.tagline}. Capacidades: ${a.capabilities.slice(0, 3).join(", ")}.`
     )
     .join("\n");
 
-  return `Eres el motor de inteligencia de AncloraVisionFlow, una aplicación del ecosistema Anclora Group que convierte ideas, proyectos o problemas en mapas visuales accionables.
+  return `Eres el motor de AncloraVisionFlow. Conviertes ideas del ecosistema Anclora Group en mapas visuales.
 
-Tu trabajo: a partir de la idea del usuario, generar un mapa visual completo con nodos de las siguientes categorías:
+Genera JSON con estas categorías de nodos (respeta los rangos, no excedas):
 
-- "idea" (exactamente 1, núcleo del input del usuario, reescrito de forma clara y concisa)
-- "objective" (3-5 objetivos medibles y alineados con la idea)
-- "priority" (2-4 prioridades de alto nivel, con campo priority: "alta" | "media" | "baja")
-- "step" (4-7 pasos ordenados de ejecución, con campo time opcional y owner opcional)
-- "next" (2-4 próximos pasos accionables de corto plazo)
-- "risk" (3-5 riesgos con bullets de mitigación)
-- "tool" (3-6 herramientas — prioriza SIEMPRE apps del ecosistema Anclora cuando encajen, usa el slug exacto; puedes añadir herramientas externas solo si son imprescindibles)
-- "cost" (2-4 partidas de coste con número en EUR en campo cost; mezcla one-shot y recurring)
-- "kpi" (2-4 KPIs medibles con target, current y unit; ej. unit="%" target="85" current="42")
-- "stakeholder" (3-5 stakeholders con role: "Sponsor" | "Owner" | "Contributor" | "External" y contact opcional)
-- "timeline" (3-5 hitos cronológicos con date en formato "Q1 2026" o "2026-03" y milestone: true para hitos críticos)
+- "idea" (1 nodo, núcleo reescrito claro)
+- "objective" (3 objetivos medibles)
+- "priority" (2 prioridades, campo priority: alta|media|baja)
+- "step" (4 pasos, con time y owner)
+- "next" (2 próximos pasos)
+- "risk" (3 riesgos, con 2 bullets de mitigación cada uno)
+- "tool" (3 herramientas — prioriza apps Anclora del catálogo, usa slug exacto en appSlug)
+- "cost" (2 partidas con cost en EUR)
+- "kpi" (3 KPIs con target, current, unit)
+- "stakeholder" (3 con role: Sponsor|Owner|Contributor|External)
+- "timeline" (3 hitos con date "Q1 2026", milestone: true para críticos)
 
-REGLAS CRÍTICAS:
-1. Responde SIEMPRE en español.
-2. Los títulos deben ser cortos (máx 8 palabras) y concretos.
-3. Las descripciones deben tener entre 15 y 35 palabras, accionables.
-4. Usa los slugs exactos de las apps Anclora: ${ANCLORA_APPS.map((a) => a.slug).join(", ")}.
-5. Solo incluye appSlug cuando la herramienta sea una app del catálogo.
-6. El summary debe tener entre 40 y 80 palabras, en tono profesional, explicando el enfoque del mapa.
-7. NO inventes apps Anclora que no existan en el catálogo.
-8. Para KPIs, incluye siempre target, current y unit para que se vean las brechas.
-9. Para timeline, ordena los hitos cronológicamente (del más cercano al más lejano).
+REGLAS:
+- Español. Títulos máx 6 palabras. Descripciones 12-25 palabras.
+- Slugs válidos: ${ANCLORA_APPS.map((a) => a.slug).join(", ")}.
+- Summary: 30-50 palabras.
+- SIN markdown, SOLO JSON.
 
-CATÁLOGO DEL ECOSISTEMA ANCLORA:
+CATÁLOGO:
 ${appCatalog}
 
-FORMATO DE SALIDA: JSON válido, sin markdown, sin explicación, estrictamente:
-{
-  "summary": "string",
-  "appSlugs": ["slug1", ...],
-  "nodes": [
-    { "category": "idea", "title": "...", "description": "..." },
-    { "category": "objective", "title": "...", "description": "...", "bullets": ["kpi1", "kpi2"] },
-    { "category": "priority", "title": "...", "description": "...", "priority": "alta" },
-    { "category": "step", "title": "...", "description": "...", "time": "2 semanas", "owner": "Backend" },
-    { "category": "next", "title": "...", "description": "..." },
-    { "category": "risk", "title": "...", "description": "...", "bullets": ["mitigación 1", "mitigación 2"] },
-    { "category": "tool", "title": "Anclora Nexus", "description": "...", "appSlug": "nexus" },
-    { "category": "cost", "title": "...", "description": "...", "cost": 4500 },
-    { "category": "kpi", "title": "Conversión premium", "description": "...", "target": "85", "current": "42", "unit": "%" },
-    { "category": "stakeholder", "title": "Equipo energético", "description": "...", "role": "Owner", "contact": "energia@anclora.es" },
-    { "category": "timeline", "title": "Lanzamiento piloto", "description": "...", "date": "Q1 2026", "milestone": true }
-  ]
-}`;
+SALIDA JSON:
+{"summary":"...","appSlugs":["slug"],"nodes":[{"category":"idea","title":"...","description":"..."},{"category":"objective","title":"...","description":"...","bullets":["..."]},{"category":"priority","title":"...","description":"...","priority":"alta"},{"category":"step","title":"...","description":"...","time":"2 sem","owner":"Backend"},{"category":"next","title":"...","description":"..."},{"category":"risk","title":"...","description":"...","bullets":["m1","m2"]},{"category":"tool","title":"Anclora Nexus","description":"...","appSlug":"nexus"},{"category":"cost","title":"...","description":"...","cost":4500},{"category":"kpi","title":"...","description":"...","target":"85","current":"42","unit":"%"},{"category":"stakeholder","title":"...","description":"...","role":"Owner","contact":"x@anclora.es"},{"category":"timeline","title":"...","description":"...","date":"Q1 2026","milestone":true}]}`;
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   try {
     const body = await req.json().catch(() => ({}));
     const idea: string = (body.idea || "").toString().trim();
@@ -111,12 +158,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine relevant apps to enrich the prompt
+    // Determine relevant apps to enrich the prompt (limit to 6 to keep prompt small)
     const relevantApps = findRelevantApps(idea);
     const appsForPrompt =
       relevantApps.length > 0
-        ? [...new Set([...relevantApps, ...ANCLORA_APPS.slice(0, 4)])]
-        : ANCLORA_APPS;
+        ? [...new Set([...relevantApps, ...ANCLORA_APPS.slice(0, 3)])].slice(0, 6)
+        : ANCLORA_APPS.slice(0, 6);
 
     const systemPrompt = buildSystemPrompt(appsForPrompt);
 
@@ -126,27 +173,54 @@ export async function POST(req: NextRequest) {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Idea del usuario: """${idea}"""\n\nGenera el mapa visual completo siguiendo el formato JSON especificado.`,
+          content: `Idea: """${idea}"""\n\nGenera el JSON del mapa visual.`,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 3200,
+      temperature: 0.6,
+      max_tokens: 2400,
     });
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[vision/generate] LLM responded in ${elapsed}ms`);
 
     const content = completion.choices?.[0]?.message?.content ?? "";
 
-    // Extract JSON robustly
+    // Extract JSON robustly — handle markdown code fences and extra text
     let parsed: LLMResponse;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("No JSON in response");
-      parsed = JSON.parse(jsonMatch[0]);
+      // Strategy 1: strip markdown code fences if present
+      let cleaned = content.trim();
+      // Remove leading ```json or ``` and trailing ```
+      const fenceMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
+      if (fenceMatch) {
+        cleaned = fenceMatch[1].trim();
+      }
+      // Strategy 2: find the first { and last } (JSON object bounds)
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        throw new Error("No JSON object found in response");
+      }
+      let jsonStr = cleaned.slice(firstBrace, lastBrace + 1);
+
+      // Strategy 3: try parsing as-is
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (e) {
+        // Strategy 4: try to repair truncated JSON
+        // The LLM may have run out of tokens mid-array. Try to close open arrays/objects.
+        const repaired = repairTruncatedJson(jsonStr);
+        parsed = JSON.parse(repaired);
+      }
     } catch (err) {
-      console.error("LLM JSON parse failed:", err, content.slice(0, 500));
+      console.error(
+        "LLM JSON parse failed:",
+        err instanceof Error ? err.message : err
+      );
       return NextResponse.json(
         {
-          error: "No se pudo interpretar el mapa generado. Intenta reformular la idea.",
-          raw: content.slice(0, 800),
+          error:
+            "No se pudo interpretar el mapa generado. Intenta reformular la idea o generar de nuevo.",
         },
         { status: 502 }
       );

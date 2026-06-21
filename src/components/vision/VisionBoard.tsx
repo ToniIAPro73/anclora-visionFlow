@@ -242,12 +242,29 @@ export function VisionBoard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idea }),
       });
+
+      // Handle non-JSON responses (e.g. 502 Bad Gateway HTML from the preview gateway)
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        if (res.status === 502 || res.status === 504) {
+          throw new Error(
+            "El servidor tardó demasiado en responder. Inténtalo de nuevo — la generación debería ser más rápida ahora."
+          );
+        }
+        throw new Error(
+          `Respuesta inesperada del servidor (HTTP ${res.status}). Inténtalo de nuevo.`
+        );
+      }
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "No se pudo generar el mapa");
       }
+      if (!data.nodes || !Array.isArray(data.nodes) || data.nodes.length === 0) {
+        throw new Error("El mapa generado no contiene nodos. Prueba con otra idea.");
+      }
       setMap({ ...data, palette });
-      toast.success("Mapa visual generado");
+      toast.success(`Mapa visual generado · ${data.nodes.length} nodos`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error desconocido";
       setError(msg);

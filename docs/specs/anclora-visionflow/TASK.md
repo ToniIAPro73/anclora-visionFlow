@@ -259,15 +259,15 @@
 ---
 
 ### TASK-1007 · Rate limiting en endpoint de generación
-**Fase:** 1 | **Prioridad:** ALTA | **Duración estimada:** 2h | **Estado:** TODO
+**Fase:** 1 | **Prioridad:** ALTA | **Duración estimada:** 2h | **Estado:** DONE
 **Refs:** REQ-AI-005, REQ-SEC-005
 
 **Criterios de aceptación:**
 
-- [ ] Implementar rate limiting OSS (ej. `@upstash/ratelimit` con Redis in-memory o `lru-cache`) por `userId`
-- [ ] Límite configurable: N peticiones por ventana de tiempo
-- [ ] Retorna 429 con header `Retry-After` cuando se supera el límite
-- [ ] Prioridad OSS: no usar servicios SaaS de rate limiting sin gate aprobado
+- [x] Implementar rate limiting OSS local en memoria por IP mientras no hay user/workspace aprobado
+- [x] Límite configurable: N peticiones por ventana de tiempo
+- [x] Retorna 429 con header `Retry-After` cuando se supera el límite
+- [x] Prioridad OSS: no usar servicios SaaS de rate limiting sin gate aprobado
 
 ---
 

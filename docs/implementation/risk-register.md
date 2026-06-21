@@ -14,6 +14,9 @@
 | RISK-HEADERS-001 | Sin security headers HTTP (CSP, X-Frame-Options, etc.) en next.config.ts | MEDIA | ACTIVO → TASK-0008 | TASK-0008 | — |
 | RISK-MIGRATE-001 | Migración baseline no es auto-aplicable a DBs preexistentes sin historial Prisma | MEDIA | MITIGADO | TASK-1006 | — |
 | RISK-TOKENS-001 | tokensUsed era client-reported en POST /maps — no verificable server-side post-generación | BAJA | MITIGADO | TASK-1006 | — |
+| RISK-RATE-001 | Sin rate limit en `/api/vision/generate` permite abuso/coste LLM accidental | ALTA | MITIGADO | TASK-1007 | — |
+| RISK-RATE-002 | Rate limit local no coordina múltiples réplicas ni sobrevive reinicios | MEDIA | ACEPTADO | TASK-1007 | DEC-DB-001 |
+| RISK-RECEIPT-SECRET-001 | `VISIONFLOW_GENERATION_RECEIPT_SECRET` efímero invalida recibos tras restart | BAJA | OPERATIVO | TASK-1006 | — |
 
 ## Notas de evidencia
 
@@ -95,6 +98,32 @@ Probado en copia temporal `/tmp/visionflow-legacy-Hpt7m9/legacy.sqlite`: una fil
 ### RISK-TOKENS-001
 
 Mitigación aplicada: `/api/vision/generate` emite `generationReceipt`, un recibo HMAC de vida corta ligado al hash canónico del mapa generado. `POST /api/vision/maps` ignora siempre `promptVersion`, `llmModel` y `tokensUsed` del payload libre y solo persiste los metadatos si el recibo es válido, no ha caducado y corresponde al mapa. Sin recibo válido, los tres campos se persisten como `null`.
+
+### RISK-RATE-001
+
+Mitigación aplicada: `POST /api/vision/generate` ejecuta un rate limit en memoria antes de leer
+el body, cargar catálogo o llamar al proveedor LLM. Default: 10 peticiones por 60 segundos por IP,
+con `Retry-After` en respuestas 429. Variables configurables:
+
+- `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS`: default `10`, rango `1..1000`.
+- `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS`: default `60`, rango `1..3600`.
+- `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS`: default `1000`, rango `10..100000`.
+
+Si faltan o están fuera de rango, se usan defaults. El estado no guarda prompts, mapas, API keys
+ni contenido libre; solo clave IP, contador, `resetAt` y `lastSeenAt`.
+
+### RISK-RATE-002
+
+Limitación aceptada para TASK-1007: el contador es local por proceso, se reinicia al reiniciar
+la instancia y no coordina varias réplicas. Si la app escala horizontalmente, este control no debe
+presentarse como rate limit distribuido de producción; requerirá diseño posterior con storage
+compartido aprobado.
+
+### RISK-RECEIPT-SECRET-001
+
+Requisito operativo no bloqueante: `VISIONFLOW_GENERATION_RECEIPT_SECRET` debe configurarse de
+forma persistente en staging y producción. El secreto efímero de arranque solo es aceptable para
+desarrollo local.
 
 ### RISK-ZOD-001
 

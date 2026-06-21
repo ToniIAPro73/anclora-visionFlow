@@ -13,6 +13,7 @@
 | TASK-0007 | REQ-SEC-008 | DES-DEVOPS-002 | .gitignore | git grep scan CLEAN | N/A | DONE |
 | TASK-0008 | REQ-SEC-009 | DES-SEC-004 | next.config.ts | headers() verificados en code-review | 6443811 | DONE |
 | TASK-1006 | REQ-AI-002, REQ-AI-007 | DES-AI-003 | llm-client.ts, vision-map.ts, generation-receipt.ts, schema.prisma, generate/route.ts, maps/route.ts, maps/[id]/route.ts, generation-metadata.test.ts | recibo válido/alterado/caducado/sin recibo ✓; legacy SQLite temporal ✓ | correctivos TASK-1006 | DONE |
+| TASK-1007 | REQ-AI-005, REQ-SEC-005 | DES-SEC-002, DES-SEC-001 | generation-rate-limit.ts, generate/route.ts, route.test.ts, generation-rate-limit.test.ts | 429 + Retry-After, TTL, evicción, aislamiento, privacidad, no LLM call ✓ | correctivos TASK-1007 | DONE |
 | TASK-1008 | REQ-QA-001, REQ-QA-002 | DES-DEC-009 | vitest.config.ts, llm-utils.ts, *.test.ts/tsx | 29/29 vitest run ✓ | 513b951 + e9ac3aa | DONE |
 
 ## Notas de verificación
@@ -59,3 +60,14 @@
 - `/api/vision/maps` ignora metadatos libres del cliente y persiste solo metadatos validados.
 - Casos cubiertos: payload falsificado, recibo válido, recibo alterado, recibo caducado, guardado sin recibo, `usage.total_tokens` ausente y ausencia de prompt completo/API keys/contenido de usuario en el recibo.
 - Prueba legacy temporal: `/tmp/visionflow-legacy-Hpt7m9/legacy.sqlite`, 1 fila preservada, columnas `promptVersion`, `llmModel`, `tokensUsed` añadidas como nullable y `migrate resolve` ejecutado después de los `ALTER TABLE`.
+
+### TASK-1007 (rate limiting local de generación)
+
+- Política default: 10 peticiones por 60 segundos por IP; configurable con variables de entorno.
+- Capacidad default: 1000 claves, TTL por ventana y evicción del registro menos reciente al llenar.
+- Caddy sobrescribe `X-Real-IP` y `X-Forwarded-For` con `{remote_host}`; el route handler prioriza
+  `X-Real-IP`, luego primer `X-Forwarded-For`, y usa `local` cuando no hay headers.
+- 429 devuelve mensaje seguro en español y `Retry-After` calculado desde el fin de ventana.
+- Pruebas: dentro del límite, excedido, `Retry-After`, expiración, limpieza/evicción,
+  no llamada al LLM, aislamiento entre claves y ausencia de prompts/secretos/contenido libre.
+- Limitación: contador local por proceso; no coordina múltiples réplicas.

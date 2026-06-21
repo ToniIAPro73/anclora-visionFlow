@@ -137,6 +137,34 @@
 
 ---
 
+## TASK-1007 — DONE
+
+- Requisitos: REQ-AI-005, REQ-SEC-005
+- Archivos:
+  - src/lib/generation-rate-limit.ts — limitador local en memoria por proceso, TTL por ventana y capacidad máxima
+  - src/app/api/vision/generate/route.ts — aplica rate limit al inicio de `POST` antes de leer body, catálogo o LLM
+  - src/lib/generation-rate-limit.test.ts — casos unitarios de límite, TTL, evicción, aislamiento y privacidad
+  - src/app/api/vision/generate/route.test.ts — prueba 429 y no llamada al cliente LLM
+  - package.json — script `typecheck` para el gate solicitado
+- Política aplicada: 10 peticiones por 60 segundos por clave, configurable por entorno.
+- Variables:
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS`: default `10`, rango `1..1000`.
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS`: default `60`, rango `1..3600`.
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS`: default `1000`, rango `10..100000`.
+  - Valores ausentes o fuera de rango usan defaults seguros.
+- Clave: sin autenticación de usuario/workspace aprobada, se usa IP. Detrás de Caddy se prioriza
+  `X-Real-IP`, que el Caddyfile sobrescribe con `{remote_host}`; fallback a primer
+  `X-Forwarded-For`; sin proxy/headers se agrupa como `ip:local`.
+- Respuesta 429: JSON seguro en español con `code: "RATE_LIMITED"` y header `Retry-After`.
+- Privacidad: el estado del limitador solo guarda clave IP normalizada, contador, reset y último uso.
+  No guarda prompts, mapas, API keys ni contenido libre.
+- Limitación conocida: control local por proceso, se reinicia con la instancia y no coordina réplicas.
+- Nota operativa TASK-1006: `VISIONFLOW_GENERATION_RECEIPT_SECRET` debe configurarse persistente
+  en staging/producción; secreto efímero solo para desarrollo local.
+- Verificación focal: 9/9 tests PASS, typecheck PASS. Gates completos ejecutados en cierre.
+
+---
+
 ## TASK-1008 — DONE
 
 - Requisitos: REQ-QA-001, REQ-QA-002, DES-DEC-009

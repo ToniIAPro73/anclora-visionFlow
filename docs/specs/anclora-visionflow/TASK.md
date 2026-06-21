@@ -247,14 +247,14 @@
 ---
 
 ### TASK-1006 · Versionado y trazabilidad del prompt del sistema
-**Fase:** 1 | **Prioridad:** ALTA | **Duración estimada:** 2h | **Estado:** TODO
+**Fase:** 1 | **Prioridad:** ALTA | **Duración estimada:** 2h | **Estado:** DONE
 **Refs:** REQ-AI-002, REQ-AI-007, DES-AI-003
 
 **Criterios de aceptación:**
 
-- [ ] `PROMPT_VERSION` exportado como constante semver desde `route.ts` o módulo dedicado
-- [ ] Cada respuesta de generación exitosa persiste `promptVersion`, `llmModel`, `tokensUsed` en `VisionMapRecord`
-- [ ] `GET /api/vision/generate` retorna la versión del prompt actual
+- [x] `PROMPT_VERSION` exportado como constante semver desde `route.ts` o módulo dedicado
+- [x] Cada respuesta de generación exitosa persiste `promptVersion`, `llmModel`, `tokensUsed` en `VisionMapRecord` solo con recibo server-verifiable
+- [x] `GET /api/vision/generate` retorna la versión del prompt actual
 
 ---
 

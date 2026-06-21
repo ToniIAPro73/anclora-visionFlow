@@ -118,19 +118,22 @@
 - Archivos:
   - src/lib/llm-client.ts — añadida constante exportada `PROMPT_VERSION = "v1.0.0"`
   - src/lib/vision-map.ts — añadidos campos opcionales `promptVersion?`, `llmModel?`, `tokensUsed?` a `VisionMap`
+  - src/lib/generation-receipt.ts — recibo HMAC server-side con TTL y hash del mapa generado
   - prisma/schema.prisma — añadidos `promptVersion String?`, `llmModel String?`, `tokensUsed Int?` a `VisionMapRecord`
   - prisma/migrations/20260621062333_add_generation_metadata/ — migración versionada (inicial baseline + nuevos campos)
-  - src/app/api/vision/generate/route.ts — captura `completion.usage?.total_tokens`, incluye metadatos en respuesta; GET devuelve `promptVersion` y `llmModel`
-  - src/app/api/vision/maps/route.ts — persiste `promptVersion`, `llmModel`, `tokensUsed` al guardar; incluye en GET list
+  - src/app/api/vision/generate/route.ts — captura `completion.usage?.total_tokens`, emite `generationReceipt`; GET devuelve `promptVersion` y `llmModel`
+  - src/app/api/vision/maps/route.ts — persiste metadatos solo si `generationReceipt` es válido; incluye en GET list
   - src/app/api/vision/maps/[id]/route.ts — incluye metadatos en respuesta GET
-  - src/lib/generation-metadata.test.ts — 46 casos de test (incluye protección contra payload falsificado)
-- Interpretación: Los metadatos viajan en el objeto VisionMap desde generate y se persisten cuando el usuario guarda el mapa en `/api/vision/maps`. Registros históricos sin datos de trazabilidad quedan con null (sin atribuir versiones inexistentes).
-- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado. Client-reported en save.
-- `promptVersion` y `llmModel`: server-authoritative en POST /maps — el servidor usa siempre sus valores, ignorando payload del cliente (REQ-AI-002 auditabilidad).
+  - src/lib/generation-metadata.test.ts — cobertura de recibo válido, alterado, caducado, sin recibo, `usage.total_tokens` ausente y privacidad
+- Interpretación: `/api/vision/generate` devuelve un mapa con un recibo firmado y de vida corta. El recibo contiene solo `promptVersion`, `llmModel`, `tokensUsed`, `issuedAt`, `expiresAt`, `mapHash`, `nonce` y versión del recibo. No contiene prompt completo, API keys ni contenido del usuario.
+- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado ni aceptado desde payload libre del cliente.
+- `promptVersion`, `llmModel` y `tokensUsed`: server-verifiable en POST /maps — el servidor ignora siempre los tres valores del cliente y solo persiste los valores del recibo si la firma, TTL y hash del mapa coinciden. Sin recibo, recibo caducado, alterado o no correspondiente al mapa, persiste `null` en los tres campos (mapa importado/no verificado).
 - Compatibilidad histórica: campos nullable en schema — registros existentes quedan con null.
-- Migración: baseline `20260621062333_add_generation_metadata` crea todos los modelos. No auto-aplicable a DBs preexistentes sin historial Prisma — ver RISK-MIGRATE-001.
+- Migración:
+  - Entorno nuevo sin tablas existentes: `bunx prisma migrate deploy`.
+  - Entorno legacy con tablas existentes y sin `_prisma_migrations`: backup verificable de SQLite, validación del esquema anterior esperado, tres `ALTER TABLE ... ADD COLUMN ...`, inspección real con `PRAGMA table_info('VisionMapRecord')`, verificación de conteo/muestra de datos y solo entonces `bunx prisma migrate resolve --applied 20260621062333_add_generation_metadata`.
 - Rama: `feat/visionflow-task-1006-integrated` basada en `0783055` (tip de TASK-1008) para preservar continuidad de commits.
-- Verificación: lint PASS, typecheck PASS, test 46/46 PASS, build PASS, prisma validate PASS.
+- Verificación correctiva: test focal 18/18 PASS, typecheck PASS, prueba legacy temporal PASS. Gates completos ejecutados en cierre correctivo.
 
 ---
 

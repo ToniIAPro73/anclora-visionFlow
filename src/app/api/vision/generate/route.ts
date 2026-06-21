@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import ZAI from "z-ai-web-dev-sdk";
+import { llmClient, llmModel } from "@/lib/llm-client";
 import {
   ANCLORA_APPS,
   findRelevantApps,
@@ -198,8 +198,8 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(orderedCatalogText, allSlugs);
 
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
+    const completion = await llmClient.chat.completions.create({
+      model: llmModel,
       messages: [
         { role: "system", content: systemPrompt },
         {

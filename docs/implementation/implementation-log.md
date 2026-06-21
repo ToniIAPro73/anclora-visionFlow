@@ -202,6 +202,168 @@
   compatibilidad de un solo workspace.
 - Rollback: revertir commits TASK-1001 y restaurar backup SQLite previo a migración.
 
+### Runbook de migración SQLite — TASK-1001 (GATE-DB-001)
+
+**PROHIBICIÓN ABSOLUTA:** No usar `prisma db push` en ninguna ruta. `prisma migrate status` informa del estado del historial de migraciones, pero no sustituye las verificaciones SQLite reales con `PRAGMA`.
+
+**Verificaciones SQLite obligatorias** (aplicar en las tres rutas antes y después):
+
+```bash
+# Contar filas ANTES (anotar para comparar)
+sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord; SELECT COUNT(*) FROM AncloraAppRecord;" 2>/dev/null || true
+
+# Verificar esquema de tablas clave
+sqlite3 "$DB" "PRAGMA table_info('VisionMapRecord');"
+sqlite3 "$DB" "PRAGMA table_info('AncloraAppRecord');"
+sqlite3 "$DB" "PRAGMA table_info('Workspace');"
+
+# Verificar integridad referencial
+sqlite3 "$DB" "PRAGMA foreign_keys=ON; PRAGMA foreign_key_check;"  # debe devolver 0 filas
+
+# Verificar índices
+sqlite3 "$DB" "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name;"
+
+# Contar filas DESPUÉS y comparar
+sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord; SELECT COUNT(*) FROM AncloraAppRecord; SELECT COUNT(*) FROM Workspace;"
+```
+
+**Condición de abortar:** Si `PRAGMA foreign_key_check` devuelve cualquier fila, o si `COUNT(*)` post-migración es menor al pre-migración → detener y restaurar desde backup.
+
+---
+
+#### Ruta 1: Base nueva (sin tablas)
+
+**Precondiciones:** Base SQLite vacía o inexistente. Sin `_prisma_migrations`.
+
+**Procedimiento:**
+
+```bash
+# 1. Aplicar ambas migraciones en orden
+DATABASE_URL="file:./dev.db" bunx prisma migrate deploy
+
+# 2. Verificar
+sqlite3 dev.db "SELECT COUNT(*) FROM Workspace;"                  # debe devolver 1
+sqlite3 dev.db "SELECT slug FROM Workspace;"                      # 'anclora-internal'
+sqlite3 dev.db "PRAGMA foreign_keys=ON; PRAGMA foreign_key_check;" # 0 filas
+sqlite3 dev.db "PRAGMA table_info('VisionMapRecord');" | grep -E "workspaceId|promptVersion"
+```
+
+**Rollback:** No aplica (base vacía nueva).
+
+---
+
+#### Ruta 2: Base legacy anterior a TASK-1006 (tablas sin `_prisma_migrations`)
+
+**Precondiciones:** Tablas `User`, `VisionMapRecord` (sin `promptVersion/llmModel/tokensUsed/workspaceId`), `AncloraAppRecord` (sin `workspaceId`) presentes. Sin tabla `_prisma_migrations`.
+
+**Backup:**
+
+```bash
+cp dev.db dev.db.backup-pre-task1001-$(date +%Y%m%d%H%M%S)
+```
+
+**Procedimiento:**
+
+```bash
+DB="dev.db"
+# 1. Anotar conteos pre-migración
+MAPS_BEFORE=$(sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord;")
+APPS_BEFORE=$(sqlite3 "$DB" "SELECT COUNT(*) FROM AncloraAppRecord;")
+echo "Antes: VisionMapRecord=$MAPS_BEFORE, AncloraAppRecord=$APPS_BEFORE"
+
+# 2. Verificar que las columnas TASK-1006 NO existen aún
+sqlite3 "$DB" "PRAGMA table_info('VisionMapRecord');" | awk -F'|' '{print $2}' | grep -E "promptVersion|llmModel|tokensUsed" \
+  && echo "COLUMNAS YA PRESENTES — omitir paso 3" \
+  || echo "Columnas ausentes — aplicar paso 3"
+
+# 3. Añadir columnas de TASK-1006 (nullable, no destructivo)
+sqlite3 "$DB" "ALTER TABLE VisionMapRecord ADD COLUMN promptVersion TEXT;"
+sqlite3 "$DB" "ALTER TABLE VisionMapRecord ADD COLUMN llmModel TEXT;"
+sqlite3 "$DB" "ALTER TABLE VisionMapRecord ADD COLUMN tokensUsed INTEGER;"
+
+# 4. Verificar columnas añadidas
+sqlite3 "$DB" "PRAGMA table_info('VisionMapRecord');" | awk -F'|' '{print $2}' | grep -E "promptVersion|llmModel|tokensUsed"
+
+# 5. Marcar baseline de TASK-1006 como ya aplicada (sin ejecutar su SQL)
+DATABASE_URL="file://$DB" bunx prisma migrate resolve \
+  --applied 20260621062333_add_generation_metadata
+
+# 6. Aplicar migración de TASK-1001 (workspace governance)
+DATABASE_URL="file://$DB" bunx prisma migrate deploy
+
+# 7. Verificaciones post-migración
+MAPS_AFTER=$(sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord;")
+APPS_AFTER=$(sqlite3 "$DB" "SELECT COUNT(*) FROM AncloraAppRecord;")
+echo "Después: VisionMapRecord=$MAPS_AFTER, AncloraAppRecord=$APPS_AFTER"
+[ "$MAPS_AFTER" = "$MAPS_BEFORE" ] && [ "$APPS_AFTER" = "$APPS_BEFORE" ] \
+  && echo "CONTEOS OK" || echo "ERROR: pérdida de filas"
+
+sqlite3 "$DB" "PRAGMA foreign_keys=ON; PRAGMA foreign_key_check;"
+sqlite3 "$DB" "SELECT slug FROM Workspace;"                       # anclora-internal
+sqlite3 "$DB" "PRAGMA table_info('VisionMapRecord');" | awk -F'|' '{print $2}' | grep workspaceId
+sqlite3 "$DB" "SELECT workspaceId FROM VisionMapRecord LIMIT 3;"  # workspace_anclora_internal
+```
+
+**Rollback:**
+
+```bash
+cp dev.db.backup-pre-task1001-<TIMESTAMP> dev.db
+```
+
+---
+
+#### Ruta 3: Base actualizada hasta TASK-1006 (con `_prisma_migrations`)
+
+**Precondiciones:** Tablas con `promptVersion/llmModel/tokensUsed` presentes. `_prisma_migrations` tiene entrada para `20260621062333_add_generation_metadata`. Sin `Workspace` ni `workspaceId`.
+
+**Backup:**
+
+```bash
+cp dev.db dev.db.backup-pre-task1001-$(date +%Y%m%d%H%M%S)
+```
+
+**Procedimiento:**
+
+```bash
+DB="dev.db"
+# 1. Validar estado actual de migraciones
+DATABASE_URL="file://$DB" bunx prisma migrate status
+# Debe mostrar: 1 migration already applied, 1 pending
+
+# 2. Anotar conteos
+MAPS_BEFORE=$(sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord;")
+APPS_BEFORE=$(sqlite3 "$DB" "SELECT COUNT(*) FROM AncloraAppRecord;")
+
+# 3. Aplicar migración de TASK-1001
+DATABASE_URL="file://$DB" bunx prisma migrate deploy
+
+# 4. Verificaciones post-migración (idénticas a Ruta 2 desde el paso 7)
+MAPS_AFTER=$(sqlite3 "$DB" "SELECT COUNT(*) FROM VisionMapRecord;")
+APPS_AFTER=$(sqlite3 "$DB" "SELECT COUNT(*) FROM AncloraAppRecord;")
+[ "$MAPS_AFTER" = "$MAPS_BEFORE" ] && [ "$APPS_AFTER" = "$APPS_BEFORE" ] \
+  && echo "CONTEOS OK" || echo "ERROR: pérdida de filas"
+
+sqlite3 "$DB" "PRAGMA foreign_keys=ON; PRAGMA foreign_key_check;"
+sqlite3 "$DB" "SELECT slug FROM Workspace;"
+sqlite3 "$DB" "SELECT workspaceId FROM VisionMapRecord LIMIT 3;"
+```
+
+**Rollback:**
+
+```bash
+cp dev.db.backup-pre-task1001-<TIMESTAMP> dev.db
+```
+
+---
+
+#### Matriz resumen
+
+| Estado de base | Ruta | Migración 1 | Migración 2 |
+| --- | --- | --- | --- |
+| Nueva, sin tablas | Ruta 1 | `migrate deploy` la crea | `migrate deploy` la aplica |
+| Legacy sin `_prisma_migrations` | Ruta 2 | ALTER TABLE manual + `resolve --applied` | `migrate deploy` la aplica |
+| Ya actualizada a TASK-1006 | Ruta 3 | Ya aplicada | `migrate deploy` la aplica |
+
 ---
 
 ## TASK-1008 — DONE

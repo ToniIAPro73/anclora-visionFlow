@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { PROMPT_VERSION, llmModel as SERVER_LLM_MODEL } from "@/lib/llm-client";
+import { getVerifiedGenerationMetadata } from "@/lib/generation-receipt";
 import type { VisionMap } from "@/lib/vision-map";
 
 const SaveMapSchema = z.object({
@@ -87,14 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     const m = map!;
-    // Server-authoritative: promptVersion and llmModel are always set to server's known values.
-    // Client-provided values are ignored to prevent forging traceability data (REQ-AI-002, REQ-AI-007).
-    // tokensUsed is client-reported (server cannot re-verify post-generation) but must be a positive integer.
-    const genMeta = {
-      promptVersion: PROMPT_VERSION,
-      llmModel: SERVER_LLM_MODEL,
-      tokensUsed: typeof m.tokensUsed === "number" && m.tokensUsed > 0 ? m.tokensUsed : null,
-    };
+    const genMeta = getVerifiedGenerationMetadata(m, m.generationReceipt);
     const record = await db.visionMapRecord.upsert({
       where: { id: id || "new" },
       create: {

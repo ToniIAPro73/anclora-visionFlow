@@ -72,6 +72,8 @@ export interface VisionMap {
   promptVersion?: string;
   llmModel?: string;
   tokensUsed?: number | null;
+  /** Short-lived server receipt proving generation metadata provenance. */
+  generationReceipt?: string;
 }
 
 export type PaletteId = "anclora" | "nexus" | "premium";

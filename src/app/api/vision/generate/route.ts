@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getLlmClient, llmModel, PROMPT_VERSION } from "@/lib/llm-client";
 import { repairTruncatedJson } from "@/lib/llm-utils";
+import { createGenerationReceipt } from "@/lib/generation-receipt";
 import {
   ANCLORA_APPS,
   findRelevantApps,
@@ -287,6 +288,11 @@ export async function POST(req: NextRequest) {
       llmModel,
       tokensUsed,
     };
+    visionMap.generationReceipt = createGenerationReceipt(visionMap, {
+      promptVersion: PROMPT_VERSION,
+      llmModel,
+      tokensUsed,
+    });
 
     return NextResponse.json(visionMap);
   } catch (err) {

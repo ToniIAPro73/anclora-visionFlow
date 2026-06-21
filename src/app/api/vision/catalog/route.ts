@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCatalogApps, updateCatalogAppFields } from "@/lib/anclora-catalog";
+
+const UpdateCatalogAppSchema = z.object({
+  id: z.string().min(1),
+  fields: z.object({
+    name: z.string().min(1).max(200).optional(),
+    family: z.enum(["Premium", "Internal", "Tool", "Platform"]).optional(),
+    tagline: z.string().max(300).optional(),
+    description: z.string().max(2000).optional(),
+    stackJson: z.string().optional(),
+    capabilitiesJson: z.string().optional(),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+    domain: z.string().max(200).optional(),
+    githubUrl: z.string().url().optional().nullable(),
+  }),
+});
 
 export const runtime = "nodejs";
 
@@ -20,11 +36,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { id, fields } = body as { id?: string; fields?: Record<string, unknown> };
-    if (!id || !fields) {
-      return NextResponse.json({ error: "Se requiere id y fields." }, { status: 400 });
+    const parseResult = UpdateCatalogAppSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "Datos de la app inválidos." },
+        { status: 400 }
+      );
     }
-    const updated = await updateCatalogAppFields(id, fields);
+    const { id, fields } = parseResult.data;
+    const updated = await updateCatalogAppFields(id, fields as Record<string, unknown>);
     return NextResponse.json({ ok: true, app: updated });
   } catch (err) {
     console.error("catalog update error:", err);

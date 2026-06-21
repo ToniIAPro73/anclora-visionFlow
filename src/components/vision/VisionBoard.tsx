@@ -18,6 +18,7 @@ import {
   Euro,
   Eye,
   FileDown,
+  FileText,
   Footprints,
   FolderOpen,
   Image as ImageIcon,
@@ -71,6 +72,7 @@ import { toast } from "sonner";
 import { VisionNodeCard } from "./VisionNodeCard";
 import { ConnectionsLayer } from "./ConnectionsLayer";
 import { CatalogDialog } from "./CatalogDialog";
+import { downloadSpecMarkdown } from "@/lib/markdown-export";
 import { ANCLORA_APPS } from "@/lib/anclora-ecosystem";
 import {
   getCategoryMeta,
@@ -416,6 +418,18 @@ export function VisionBoard() {
     } catch (err) {
       console.error(err);
       toast.error("No se pudo exportar el JSON");
+    }
+  }, [map, palette]);
+
+  // Export current map as Spec Markdown for LLM/agent consumption
+  const exportSpecMD = useCallback(() => {
+    if (!map) return;
+    try {
+      downloadSpecMarkdown(map, { palette });
+      toast.success("Spec Markdown exportado — listo para alimentar un agente de IA");
+    } catch (err) {
+      console.error(err);
+      toast.error("No se pudo exportar el Spec Markdown");
     }
   }, [map, palette]);
 
@@ -899,6 +913,19 @@ export function VisionBoard() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Exportar PDF</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={exportSpecMD}
+                      className="h-9 w-9 bg-background/60"
+                    >
+                      <FileText size={15} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Exportar Spec Markdown (para agente IA)</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>

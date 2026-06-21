@@ -6,6 +6,7 @@ import {
   type AncloraApp,
 } from "@/lib/anclora-ecosystem";
 import { getCatalogForPrompt, type CatalogApp } from "@/lib/anclora-catalog";
+import { sanitizeCatalogContent } from "@/lib/sanitize";
 import type {
   NodeCategory,
   Priority,
@@ -184,7 +185,7 @@ export async function POST(req: NextRequest) {
         const stack = a.stack.slice(0, 4).join(", ");
         const caps = a.capabilities.slice(0, 3).join(", ");
         const ctx = a.agentsMd
-          ? `\n  Contexto extra: ${a.agentsMd.slice(0, 200).replace(/\s+/g, " ")}`
+          ? `\n  Contexto extra: ${sanitizeCatalogContent(a.agentsMd)}`
           : "";
         return `- ${a.slug}: ${a.name} — ${a.tagline}. Capacidades: ${caps}. Stack: ${stack}.${ctx}`;
       })

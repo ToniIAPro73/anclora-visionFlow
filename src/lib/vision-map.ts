@@ -68,6 +68,10 @@ export interface VisionMap {
   generatedAt: string;
   /** Optional palette identifier */
   palette?: PaletteId;
+  /** AI generation traceability (REQ-AI-007, DES-AI-003) */
+  promptVersion?: string;
+  llmModel?: string;
+  tokensUsed?: number | null;
 }
 
 export type PaletteId = "anclora" | "nexus" | "premium";

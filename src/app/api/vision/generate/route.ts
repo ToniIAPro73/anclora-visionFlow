@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getLlmClient, llmModel } from "@/lib/llm-client";
+import { getLlmClient, llmModel, PROMPT_VERSION } from "@/lib/llm-client";
 import { repairTruncatedJson } from "@/lib/llm-utils";
 import {
   ANCLORA_APPS,
@@ -149,7 +149,8 @@ export async function POST(req: NextRequest) {
     });
 
     const elapsed = Date.now() - startTime;
-    console.log(`[vision/generate] LLM responded in ${elapsed}ms`);
+    const tokensUsed = completion.usage?.total_tokens ?? null;
+    console.log(`[vision/generate] LLM responded in ${elapsed}ms, tokens=${tokensUsed ?? "n/a"}`);
 
     const content = completion.choices?.[0]?.message?.content ?? "";
 
@@ -282,6 +283,9 @@ export async function POST(req: NextRequest) {
       apps,
       generatedAt: new Date().toISOString(),
       palette: "anclora",
+      promptVersion: PROMPT_VERSION,
+      llmModel,
+      tokensUsed,
     };
 
     return NextResponse.json(visionMap);
@@ -298,6 +302,8 @@ export async function GET() {
   return NextResponse.json({
     name: "AncloraVisionFlow · Generador de mapas visuales",
     status: "ok",
+    promptVersion: PROMPT_VERSION,
+    llmModel,
     apps: ANCLORA_APPS.map((a) => a.slug),
   });
 }

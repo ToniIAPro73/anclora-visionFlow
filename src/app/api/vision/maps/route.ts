@@ -33,6 +33,9 @@ export async function GET() {
       updatedAt: r.updatedAt,
       appsCount: safeParseArr(r.appsJson).length,
       nodesCount: safeParseArr(r.nodesJson).length,
+      promptVersion: r.promptVersion ?? null,
+      llmModel: r.llmModel ?? null,
+      tokensUsed: r.tokensUsed ?? null,
     }));
     return NextResponse.json({ maps });
   } catch (err) {
@@ -83,6 +86,11 @@ export async function POST(req: NextRequest) {
     }
 
     const m = map!;
+    const genMeta = {
+      promptVersion: typeof m.promptVersion === "string" ? m.promptVersion : null,
+      llmModel: typeof m.llmModel === "string" ? m.llmModel : null,
+      tokensUsed: typeof m.tokensUsed === "number" ? m.tokensUsed : null,
+    };
     const record = await db.visionMapRecord.upsert({
       where: { id: id || "new" },
       create: {
@@ -95,6 +103,7 @@ export async function POST(req: NextRequest) {
         palette: palette || m.palette || "anclora",
         tags: Array.isArray(tags) ? tags.join(",") : "",
         starred: typeof starred === "boolean" ? starred : false,
+        ...genMeta,
       },
       update: {
         title: (title || m.idea || "Mapa sin título").slice(0, 200),
@@ -106,6 +115,7 @@ export async function POST(req: NextRequest) {
         palette: palette || m.palette || "anclora",
         tags: Array.isArray(tags) ? tags.join(",") : "",
         ...(typeof starred === "boolean" ? { starred } : {}),
+        ...genMeta,
       },
     });
 

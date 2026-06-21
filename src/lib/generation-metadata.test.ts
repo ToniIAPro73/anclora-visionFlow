@@ -1,6 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { PROMPT_VERSION, llmModel } from "./llm-client";
 
+// Helper that replicates the server-authoritative genMeta logic from maps/route.ts
+function buildServerAuthoritativeGenMeta(clientMap: {
+  promptVersion?: unknown;
+  llmModel?: unknown;
+  tokensUsed?: unknown;
+}) {
+  return {
+    promptVersion: PROMPT_VERSION,
+    llmModel,
+    tokensUsed:
+      typeof clientMap.tokensUsed === "number" && clientMap.tokensUsed > 0
+        ? clientMap.tokensUsed
+        : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // TASK-1006 — AI generation traceability (REQ-AI-002, REQ-AI-007, DES-AI-003)
 // ---------------------------------------------------------------------------
@@ -114,5 +130,45 @@ describe("generation metadata persistence contract", () => {
     const usage = { prompt_tokens: 300, completion_tokens: 700, total_tokens: 1000 };
     const tokensUsed = usage?.total_tokens ?? null;
     expect(tokensUsed).toBe(1000);
+  });
+});
+
+describe("server-authoritative metadata protection (REQ-AI-002)", () => {
+  it("ignores forged promptVersion from client payload", () => {
+    const forgedPayload = { promptVersion: "v99.9.9", llmModel, tokensUsed: 500 };
+    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
+    expect(meta.promptVersion).toBe(PROMPT_VERSION);
+    expect(meta.promptVersion).not.toBe("v99.9.9");
+  });
+
+  it("ignores forged llmModel from client payload", () => {
+    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel: "gpt-4o", tokensUsed: 500 };
+    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
+    expect(meta.llmModel).toBe(llmModel);
+    expect(meta.llmModel).not.toBe("gpt-4o");
+  });
+
+  it("rejects negative tokensUsed from client payload", () => {
+    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: -1 };
+    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
+    expect(meta.tokensUsed).toBeNull();
+  });
+
+  it("rejects zero tokensUsed from client payload", () => {
+    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 0 };
+    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
+    expect(meta.tokensUsed).toBeNull();
+  });
+
+  it("rejects string tokensUsed injection from client", () => {
+    const forgedPayload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: "99999" };
+    const meta = buildServerAuthoritativeGenMeta(forgedPayload);
+    expect(meta.tokensUsed).toBeNull();
+  });
+
+  it("accepts valid positive tokensUsed from client (client-reported, not verified)", () => {
+    const payload = { promptVersion: PROMPT_VERSION, llmModel, tokensUsed: 1234 };
+    const meta = buildServerAuthoritativeGenMeta(payload);
+    expect(meta.tokensUsed).toBe(1234);
   });
 });

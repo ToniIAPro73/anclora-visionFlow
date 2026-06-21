@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED_PREFIX = "/api/vision";
 
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   if (!req.nextUrl.pathname.startsWith(PROTECTED_PREFIX)) {
     return NextResponse.next();
   }

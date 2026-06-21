@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { llmClient, llmModel } from "@/lib/llm-client";
+import { getLlmClient, llmModel } from "@/lib/llm-client";
 import { repairTruncatedJson } from "@/lib/llm-utils";
 import {
   ANCLORA_APPS,
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(orderedCatalogText, allSlugs);
 
-    const completion = await llmClient.chat.completions.create({
+    const completion = await getLlmClient().chat.completions.create({
       model: llmModel,
       messages: [
         { role: "system", content: systemPrompt },

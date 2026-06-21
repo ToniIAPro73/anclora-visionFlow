@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getVerifiedGenerationMetadata } from "@/lib/generation-receipt";
+import { resolveServerWorkspaceId } from "@/lib/workspace-context";
 import type { VisionMap } from "@/lib/vision-map";
 
 const SaveMapSchema = z.object({
@@ -18,7 +19,9 @@ export const runtime = "nodejs";
 // GET /api/vision/maps — list saved maps
 export async function GET() {
   try {
+    const workspaceId = resolveServerWorkspaceId();
     const records = await db.visionMapRecord.findMany({
+      where: { workspaceId },
       orderBy: [{ starred: "desc" }, { updatedAt: "desc" }],
       take: 100,
     });
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest) {
     }
     const { id, map: rawMap, title, tags, starred, palette } = parseResult.data;
     const map = rawMap as VisionMap | undefined;
+    const workspaceId = resolveServerWorkspaceId();
 
     if (!map && !id) {
       return NextResponse.json(
@@ -79,6 +83,13 @@ export async function POST(req: NextRequest) {
       if (Object.keys(data).length === 0) {
         return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
       }
+      const existing = await db.visionMapRecord.findFirst({
+        where: { id, workspaceId },
+        select: { id: true },
+      });
+      if (!existing) {
+        return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+      }
       const updated = await db.visionMapRecord.update({
         where: { id },
         data,
@@ -88,33 +99,33 @@ export async function POST(req: NextRequest) {
 
     const m = map!;
     const genMeta = getVerifiedGenerationMetadata(m, m.generationReceipt);
-    const record = await db.visionMapRecord.upsert({
-      where: { id: id || "new" },
-      create: {
-        title: (title || m.idea || "Mapa sin título").slice(0, 200),
-        idea: m.idea,
-        summary: m.summary || "",
-        appsJson: JSON.stringify(m.apps || []),
-        nodesJson: JSON.stringify(m.nodes || []),
-        connectionsJson: JSON.stringify(m.connections || []),
-        palette: palette || m.palette || "anclora",
-        tags: Array.isArray(tags) ? tags.join(",") : "",
-        starred: typeof starred === "boolean" ? starred : false,
-        ...genMeta,
-      },
-      update: {
-        title: (title || m.idea || "Mapa sin título").slice(0, 200),
-        idea: m.idea,
-        summary: m.summary || "",
-        appsJson: JSON.stringify(m.apps || []),
-        nodesJson: JSON.stringify(m.nodes || []),
-        connectionsJson: JSON.stringify(m.connections || []),
-        palette: palette || m.palette || "anclora",
-        tags: Array.isArray(tags) ? tags.join(",") : "",
-        ...(typeof starred === "boolean" ? { starred } : {}),
-        ...genMeta,
-      },
-    });
+    const recordData = {
+      title: (title || m.idea || "Mapa sin título").slice(0, 200),
+      idea: m.idea,
+      summary: m.summary || "",
+      appsJson: JSON.stringify(m.apps || []),
+      nodesJson: JSON.stringify(m.nodes || []),
+      connectionsJson: JSON.stringify(m.connections || []),
+      palette: palette || m.palette || "anclora",
+      tags: Array.isArray(tags) ? tags.join(",") : "",
+      ...genMeta,
+    };
+    const record = id
+      ? await updateExistingMap(id, workspaceId, {
+          ...recordData,
+          ...(typeof starred === "boolean" ? { starred } : {}),
+        })
+      : await db.visionMapRecord.create({
+          data: {
+            ...recordData,
+            workspaceId,
+            starred: typeof starred === "boolean" ? starred : false,
+          },
+        });
+
+    if (!record) {
+      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+    }
 
     return NextResponse.json({
       id: record.id,
@@ -128,6 +139,35 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function updateExistingMap(
+  id: string,
+  workspaceId: string,
+  data: {
+    title: string;
+    idea: string;
+    summary: string;
+    appsJson: string;
+    nodesJson: string;
+    connectionsJson: string;
+    palette: string;
+    tags: string;
+    starred?: boolean;
+    promptVersion: string | null;
+    llmModel: string | null;
+    tokensUsed: number | null;
+  }
+) {
+  const existing = await db.visionMapRecord.findFirst({
+    where: { id, workspaceId },
+    select: { id: true },
+  });
+  if (!existing) return null;
+  return db.visionMapRecord.update({
+    where: { id },
+    data,
+  });
 }
 
 function safeParseArr(s: string | null | undefined): unknown[] {

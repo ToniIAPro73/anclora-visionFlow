@@ -3,6 +3,7 @@
 
 import { db } from "@/lib/db";
 import { ANCLORA_APPS, type AncloraApp } from "@/lib/anclora-ecosystem";
+import { resolveServerWorkspaceId } from "@/lib/workspace-context";
 
 export interface CatalogApp extends AncloraApp {
   id?: string;
@@ -19,9 +20,11 @@ export interface CatalogApp extends AncloraApp {
  * before any import has happened.
  */
 export async function getCatalogApps(): Promise<CatalogApp[]> {
+  const workspaceId = resolveServerWorkspaceId();
   let records: Awaited<ReturnType<typeof db.ancloraAppRecord.findMany>> = [];
   try {
     records = await db.ancloraAppRecord.findMany({
+      where: { workspaceId },
       orderBy: [{ name: "asc" }],
     });
   } catch (err) {
@@ -521,9 +524,11 @@ async function fetchRawGithub(
 // ============================================================
 
 export async function upsertCatalogApp(app: ParsedApp, source: string, githubUrl?: string) {
+  const workspaceId = resolveServerWorkspaceId();
   return db.ancloraAppRecord.upsert({
-    where: { slug: app.slug },
+    where: { workspaceId_slug: { workspaceId, slug: app.slug } },
     create: {
+      workspaceId,
       slug: app.slug,
       name: app.name,
       family: app.family,
@@ -556,7 +561,12 @@ export async function upsertCatalogApp(app: ParsedApp, source: string, githubUrl
 }
 
 export async function deleteCatalogApp(id: string) {
-  return db.ancloraAppRecord.delete({ where: { id } });
+  const workspaceId = resolveServerWorkspaceId();
+  const result = await db.ancloraAppRecord.deleteMany({ where: { id, workspaceId } });
+  if (result.count === 0) {
+    throw new Error("Catalog app not found in current workspace");
+  }
+  return result;
 }
 
 export async function updateCatalogAppFields(
@@ -574,6 +584,7 @@ export async function updateCatalogAppFields(
     githubUrl: string | null;
   }>
 ) {
+  const workspaceId = resolveServerWorkspaceId();
   const data: Record<string, unknown> = {};
   if (fields.name !== undefined) data.name = fields.name;
   if (fields.slug !== undefined) data.slug = fields.slug;
@@ -585,5 +596,12 @@ export async function updateCatalogAppFields(
   if (fields.stack !== undefined) data.stackJson = JSON.stringify(fields.stack);
   if (fields.capabilities !== undefined) data.capabilitiesJson = JSON.stringify(fields.capabilities);
   if (fields.githubUrl !== undefined) data.githubUrl = fields.githubUrl;
+  const existing = await db.ancloraAppRecord.findFirst({
+    where: { id, workspaceId },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new Error("Catalog app not found in current workspace");
+  }
   return db.ancloraAppRecord.update({ where: { id }, data });
 }

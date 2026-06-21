@@ -13,6 +13,7 @@ const CONFIG: GenerationRateLimitConfig = {
   limit: 2,
   windowMs: 60_000,
   maxKeys: 3,
+  trustProxyHeaders: true,
 };
 
 afterEach(() => {
@@ -76,18 +77,38 @@ describe("generation rate limit", () => {
     expect(otherKey.remaining).toBe(1);
   });
 
-  it("derives the key from Caddy-overwritten IP headers with a local fallback", () => {
+  it("uses X-Real-IP when explicitly behind a trusted proxy", () => {
     const proxied = new NextRequest("http://localhost/api/vision/generate", {
       headers: { "x-real-ip": "203.0.113.10", "x-forwarded-for": "198.51.100.8" },
     });
+
+    expect(getGenerationRateLimitKey(proxied, { trustProxyHeaders: true })).toBe(
+      "ip:203.0.113.10"
+    );
+  });
+
+  it("uses the first X-Forwarded-For IP when explicitly behind a trusted proxy", () => {
     const forwardedOnly = new NextRequest("http://localhost/api/vision/generate", {
       headers: { "x-forwarded-for": "198.51.100.8, 10.0.0.1" },
     });
+
+    expect(getGenerationRateLimitKey(forwardedOnly, { trustProxyHeaders: true })).toBe(
+      "ip:198.51.100.8"
+    );
+  });
+
+  it("ignores forged IP headers in direct or untrusted mode", () => {
+    const direct = new NextRequest("http://localhost/api/vision/generate", {
+      headers: { "x-real-ip": "203.0.113.10", "x-forwarded-for": "198.51.100.8" },
+    });
+
+    expect(getGenerationRateLimitKey(direct, { trustProxyHeaders: false })).toBe("ip:direct");
+  });
+
+  it("falls back to a local bucket when trusted proxy headers are absent", () => {
     const local = new NextRequest("http://localhost/api/vision/generate");
 
-    expect(getGenerationRateLimitKey(proxied)).toBe("ip:203.0.113.10");
-    expect(getGenerationRateLimitKey(forwardedOnly)).toBe("ip:198.51.100.8");
-    expect(getGenerationRateLimitKey(local)).toBe("ip:local");
+    expect(getGenerationRateLimitKey(local, { trustProxyHeaders: true })).toBe("ip:local");
   });
 
   it("does not store prompts, secrets, or free-form request content", () => {
@@ -104,8 +125,27 @@ describe("generation rate limit", () => {
       VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS: "0",
       VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS: "999999",
       VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS: "1",
+      VISIONFLOW_TRUST_PROXY_HEADERS: "false",
     } as NodeJS.ProcessEnv);
 
-    expect(config).toEqual({ limit: 10, windowMs: 60_000, maxKeys: 1000 });
+    expect(config).toEqual({
+      limit: 10,
+      windowMs: 60_000,
+      maxKeys: 1000,
+      trustProxyHeaders: false,
+    });
+  });
+
+  it("enables proxy header trust only with an explicit true value", () => {
+    expect(
+      getGenerationRateLimitConfig({
+        VISIONFLOW_TRUST_PROXY_HEADERS: "true",
+      } as NodeJS.ProcessEnv).trustProxyHeaders
+    ).toBe(true);
+    expect(
+      getGenerationRateLimitConfig({
+        VISIONFLOW_TRUST_PROXY_HEADERS: "1",
+      } as NodeJS.ProcessEnv).trustProxyHeaders
+    ).toBe(false);
   });
 });

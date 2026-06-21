@@ -44,15 +44,17 @@ afterEach(() => {
   delete process.env.VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS;
   delete process.env.VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS;
   delete process.env.VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS;
+  delete process.env.VISIONFLOW_TRUST_PROXY_HEADERS;
 });
 
 describe("POST /api/vision/generate rate limit", () => {
   it("returns 429 with Retry-After and does not call the LLM when blocked", async () => {
     process.env.VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS = "1";
     process.env.VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS = "60";
+    process.env.VISIONFLOW_TRUST_PROXY_HEADERS = "true";
     checkGenerationRateLimit(
       "ip:203.0.113.10",
-      { limit: 1, windowMs: 60_000, maxKeys: 1000 },
+      { limit: 1, windowMs: 60_000, maxKeys: 1000, trustProxyHeaders: true },
       Date.now()
     );
 

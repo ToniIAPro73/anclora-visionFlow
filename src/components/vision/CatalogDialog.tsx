@@ -8,6 +8,7 @@ import {
   Database,
   ExternalLink,
   Github,
+  GitCompare,
   Pencil,
   RefreshCw,
   Search,
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { ANCLORA_APPS } from "@/lib/anclora-ecosystem";
 
 export interface CatalogAppItem {
   id?: string;
@@ -37,6 +39,13 @@ export interface CatalogAppItem {
   updatedAt?: string;
 }
 
+interface DiffEntry {
+  field: string;
+  oldValue: string;
+  newValue: string;
+  changed: boolean;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,8 +59,13 @@ export function CatalogDialog({ open, onOpenChange, onCatalogChanged }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<CatalogAppItem>>({});
   const [importing, setImporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [githubUrl, setGithubUrl] = useState("");
+  const [diffForSlug, setDiffForSlug] = useState<string | null>(null);
   const txtFileRef = useRef<HTMLInputElement>(null);
+
+  // Count of apps with a github URL (eligible for sync-all)
+  const syncableApps = apps.filter((a) => a.githubUrl);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -205,6 +219,108 @@ export function CatalogDialog({ open, onOpenChange, onCatalogChanged }: Props) {
     }
   };
 
+  // Re-imports all apps that have a githubUrl stored in the DB.
+  const handleSyncAll = async () => {
+    if (syncableApps.length === 0) {
+      toast.error("No hay apps con URL de GitHub configurada. Importa alguna primero.");
+      return;
+    }
+    setSyncing(true);
+    try {
+      const urls = syncableApps
+        .map((a) => a.githubUrl)
+        .filter((u): u is string => typeof u === "string" && u.length > 0);
+      const res = await fetch("/api/vision/catalog/import-github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error en la sincronización");
+      const ok = data.imported?.length || 0;
+      const errs = data.errors?.length || 0;
+      if (ok > 0) {
+        toast.success(`${ok} de ${syncableApps.length} app(s) sincronizada(s)`);
+      }
+      if (errs > 0) {
+        toast.warning(
+          `${errs} app(s) no se pudieron sincronizar (¿repo privado o README ausente?)`
+        );
+      }
+      if (ok === 0 && errs === 0) toast.info("No se sincronizó nada");
+      await refresh();
+      onCatalogChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Compute diff between the hardcoded default and the current DB-backed app.
+  const computeDiff = (app: CatalogAppItem): DiffEntry[] => {
+    const defaultApp = ANCLORA_APPS.find((d) => d.slug === app.slug);
+    if (!defaultApp) {
+      return [
+        {
+          field: "source",
+          oldValue: "(no existe en defaults)",
+          newValue: app.source || "importada",
+          changed: true,
+        },
+      ];
+    }
+    const entries: DiffEntry[] = [
+      {
+        field: "name",
+        oldValue: defaultApp.name,
+        newValue: app.name,
+        changed: defaultApp.name !== app.name,
+      },
+      {
+        field: "tagline",
+        oldValue: defaultApp.tagline,
+        newValue: app.tagline,
+        changed: defaultApp.tagline !== app.tagline,
+      },
+      {
+        field: "family",
+        oldValue: defaultApp.family,
+        newValue: app.family,
+        changed: defaultApp.family !== app.family,
+      },
+      {
+        field: "description",
+        oldValue: defaultApp.description,
+        newValue: app.description,
+        changed: defaultApp.description !== app.description,
+      },
+      {
+        field: "accent",
+        oldValue: defaultApp.accent,
+        newValue: app.accent,
+        changed: defaultApp.accent !== app.accent,
+      },
+      {
+        field: "stack",
+        oldValue: defaultApp.stack.join(", "),
+        newValue: app.stack.join(", "),
+        changed:
+          defaultApp.stack.length !== app.stack.length ||
+          defaultApp.stack.some((s, i) => s !== app.stack[i]),
+      },
+      {
+        field: "capabilities",
+        oldValue: defaultApp.capabilities.join(", "),
+        newValue: app.capabilities.join(", "),
+        changed:
+          defaultApp.capabilities.length !== app.capabilities.length ||
+          defaultApp.capabilities.some((c, i) => c !== app.capabilities[i]),
+      },
+    ];
+    return entries;
+  };
+
   return (
     <>
       <div
@@ -239,6 +355,23 @@ export function CatalogDialog({ open, onOpenChange, onCatalogChanged }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncAll}
+                disabled={syncing || syncableApps.length === 0}
+                className="h-8"
+                title={
+                  syncableApps.length === 0
+                    ? "No hay apps con URL de GitHub para sincronizar"
+                    : `Re-importar ${syncableApps.length} app(s) con URL de GitHub`
+                }
+              >
+                <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+                <span className="hidden sm:inline ml-1">
+                  {syncing ? "Sincronizando…" : `Sincronizar todo (${syncableApps.length})`}
+                </span>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -361,6 +494,7 @@ export function CatalogDialog({ open, onOpenChange, onCatalogChanged }: Props) {
                     onSaveEdit={() => saveEdit(app)}
                     onDelete={() => handleDelete(app)}
                     onDraftChange={(patch) => setEditDraft((p) => ({ ...p, ...patch }))}
+                    onDiff={() => setDiffForSlug(app.slug)}
                   />
                 ))}
               </div>
@@ -382,7 +516,176 @@ export function CatalogDialog({ open, onOpenChange, onCatalogChanged }: Props) {
           </div>
         </motion.div>
       </div>
+
+      {/* Diff viewer modal */}
+      <DiffViewer
+        app={diffForSlug ? apps.find((a) => a.slug === diffForSlug) || null : null}
+        computeDiff={computeDiff}
+        onClose={() => setDiffForSlug(null)}
+      />
     </>
+  );
+}
+
+function DiffViewer({
+  app,
+  computeDiff,
+  onClose,
+}: {
+  app: CatalogAppItem | null;
+  computeDiff: (app: CatalogAppItem) => DiffEntry[];
+  onClose: () => void;
+}) {
+  if (!app) return null;
+  const diffs = computeDiff(app);
+  const changedCount = diffs.filter((d) => d.changed).length;
+  const isDefault = app.source === "default";
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="glass-strong border border-border/60 rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border/40">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: `${app.accent}22`, color: app.accent }}
+            >
+              <GitCompare size={15} />
+            </div>
+            <div>
+              <div className="font-semibold text-sm flex items-center gap-2">
+                Diff: {app.name}
+                <span className="text-[10px] font-mono text-muted-foreground">{app.slug}</span>
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Comparando versión actual vs default hardcoded
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded hover:bg-muted flex items-center justify-center"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Summary banner */}
+        <div
+          className={`px-4 py-2.5 text-xs flex items-center gap-2 border-b border-border/40 ${
+            isDefault
+              ? "bg-muted/30 text-muted-foreground"
+              : changedCount > 0
+              ? "bg-[#F59E0B]/10 text-[#F59E0B]"
+              : "bg-[#1dab89]/10 text-[#1dab89]"
+          }`}
+        >
+          {isDefault ? (
+            <>
+              <Check size={13} />
+              Esta app es el default hardcoded — sin cambios respecto al código fuente.
+            </>
+          ) : changedCount > 0 ? (
+            <>
+              <AlertTriangle size={13} />
+              <strong>{changedCount}</strong> campo(s) difieren del default. Fuente:{" "}
+              <strong>{app.source}</strong>
+              {app.githubUrl && (
+                <>
+                  {" · "}
+                  <a
+                    href={app.githubUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline inline-flex items-center gap-0.5"
+                  >
+                    repo <ExternalLink size={10} />
+                  </a>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <Check size={13} />
+              La versión importada coincide con el default (0 campos cambiados).
+            </>
+          )}
+        </div>
+
+        {/* Diff table */}
+        <div className="flex-1 overflow-y-auto custom-scroll p-4">
+          <div className="space-y-2">
+            {diffs.map((d) => (
+              <div
+                key={d.field}
+                className={`rounded-lg border overflow-hidden ${
+                  d.changed
+                    ? "border-[#F59E0B]/40 bg-[#F59E0B]/5"
+                    : "border-border/40 bg-background/30"
+                }`}
+              >
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-inherit">
+                  <span className="text-[11px] uppercase tracking-wider font-semibold text-foreground/80">
+                    {d.field}
+                  </span>
+                  {d.changed ? (
+                    <span className="text-[9px] font-bold text-[#F59E0B] uppercase tracking-wider">
+                      ● cambiado
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-bold text-[#1dab89] uppercase tracking-wider">
+                      ✓ igual
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-inherit">
+                  <div className="p-2.5">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold mb-0.5">
+                      Default
+                    </div>
+                    <div className="text-[11px] text-muted-foreground leading-snug break-words">
+                      {d.oldValue || <span className="italic opacity-50">(vacío)</span>}
+                    </div>
+                  </div>
+                  <div className="p-2.5">
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold mb-0.5">
+                      Actual
+                    </div>
+                    <div
+                      className={`text-[11px] leading-snug break-words ${
+                        d.changed ? "text-foreground font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      {d.newValue || <span className="italic opacity-50">(vacío)</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-border/40 bg-muted/10 text-[11px] text-muted-foreground flex items-center justify-between">
+          <span>
+            {diffs.length} campos comparados · {changedCount} cambiados
+          </span>
+          <Button variant="outline" size="sm" className="h-8" onClick={onClose}>
+            Cerrar
+          </Button>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
@@ -395,6 +698,7 @@ function AppCard({
   onSaveEdit,
   onDelete,
   onDraftChange,
+  onDiff,
 }: {
   app: CatalogAppItem;
   isEditing: boolean;
@@ -404,6 +708,7 @@ function AppCard({
   onSaveEdit: () => void;
   onDelete: () => void;
   onDraftChange: (patch: Partial<CatalogAppItem>) => void;
+  onDiff: () => void;
 }) {
   const sourceColor: Record<string, string> = {
     default: "text-muted-foreground/60",
@@ -532,6 +837,9 @@ function AppCard({
           <div className="text-[10px] text-muted-foreground font-mono">{app.slug}</div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+          <button onClick={onDiff} className="w-6 h-6 rounded hover:bg-muted flex items-center justify-center" title="Ver diff vs default">
+            <GitCompare size={11} className="text-muted-foreground" />
+          </button>
           <button onClick={onEdit} className="w-6 h-6 rounded hover:bg-muted flex items-center justify-center" title="Editar">
             <Pencil size={11} className="text-muted-foreground" />
           </button>

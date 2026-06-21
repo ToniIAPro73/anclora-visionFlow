@@ -153,3 +153,40 @@ Stage Summary:
 - Fase 2 completada: importador URL GitHub + parser de AGENTS.md/MEMORY.md.
 - El catálogo es ahora dinámico: las apps importadas/editadas se usan automáticamente al generar nuevos mapas visuales.
 - 4 endpoints API nuevos, 1 lib nueva (~370 líneas), 1 componente nuevo (~450 líneas).
+
+---
+Task ID: v7
+Agent: Super Z (main)
+Task: Punto 2 de las iteraciones sugeridas: botón "Sincronizar todo" que re-importa todas las apps con githubUrl + diff viewer que muestra qué cambió entre default e importado.
+
+Work Log:
+- Añadí imports: GitCompare (icono diff), ANCLORA_APPS (para comparar contra defaults), Check (icono igual).
+- Definí interfaz DiffEntry { field, oldValue, newValue, changed }.
+- Añadí 2 estados: syncing (bool para "Sincronizar todo"), diffForSlug (string | null para diff viewer).
+- Añadí syncableApps = apps.filter(a => a.githubUrl) para contar apps sincronizables.
+- Implementé handleSyncAll(): recoge todas las githubUrls de las apps en DB, hace POST /api/vision/catalog/import-github con { urls: [...] } (batch), muestra toast con "X de Y sincronizadas" o warnings si hay errores.
+- Implementé computeDiff(app): compara 7 campos (name, tagline, family, description, accent, stack, capabilities) entre el default hardcoded (ANCLORA_APPS) y la versión actual en DB. Devuelve array de DiffEntry con flag changed.
+- Añadí botón "Sincronizar todo (N)" en el header del dialog, al lado de "Refrescar". Disabled cuando syncableApps.length === 0. Muestra contador dinámico.
+- Añadí botón GitCompare en cada AppCard (junto a Editar/Eliminar) con tooltip "Ver diff vs default".
+- Creé componente DiffViewer: modal overlay z-90 con:
+  * Header con icono GitCompare + nombre app + slug.
+  * Summary banner color-coded: gris si es default, ámbar si hay cambios, verde si coincide. Muestra contador de cambios + fuente + link al repo.
+  * Tabla de 7 filas (una por campo) con columnas Default vs Actual. Cada fila tiene badge "● cambiado" (ámbar) o "✓ igual" (verde).
+  * Footer con resumen "X campos comparados · Y cambiados" + botón Cerrar.
+- Pasé onDiff callback desde el map de apps al AppCard.
+- Añadí <DiffViewer> al final del CatalogDialog, controlado por diffForSlug.
+
+Verificación con Agent Browser:
+- Botón "Sincronizar todo (0)" aparece disabled cuando no hay apps con githubUrl.
+- Botón "Ver diff vs default" en cada app card.
+- Click en diff de app default → modal muestra "Esta app es el default hardcoded — sin cambios respecto al código fuente" + 7 campos con "✓ igual".
+- Importé anclora-nexus desde GitHub → app ahora muestra source "github" + tagline "capa de inteligencia".
+- Click en diff de app importada → modal muestra "6 campo(s) difieren del default. Fuente: github-import" + 6 campos con "● cambiado" + 1 con "✓ igual".
+- Botón "Sincronizar todo (1)" se habilita tras importar. Click → POST /api/vision/catalog/import-github 200 in 311ms → re-importa correctamente.
+- Lint sin errores, sin errores de runtime.
+
+Stage Summary:
+- 2 features completadas y verificadas:
+  1. Sincronizar todo: botón que re-importa en batch todas las apps con githubUrl configurada. Toast con resumen de éxito/errores.
+  2. Diff viewer: modal que compara cada campo del default hardcoded vs la versión actual (importada/editada). Color-coded (verde=igual, ámbar=cambiado), badge de source, link al repo.
+- Caso de uso real: importas 5 apps Anclora desde GitHub → un mes después lanzas "Sincronizar todo" → abres el diff de cada una para ver qué cambió en los READMEs → decides si mantener los cambios o revertir.

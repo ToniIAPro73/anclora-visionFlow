@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import type { VisionMap } from "@/lib/vision-map";
+
+const SaveMapSchema = z.object({
+  id: z.string().optional(),
+  map: z.record(z.string(), z.unknown()).optional(),
+  title: z.string().max(200).optional(),
+  tags: z.array(z.string()).optional(),
+  starred: z.boolean().optional(),
+  palette: z.enum(["anclora", "nexus", "premium"]).optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -38,14 +48,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { id, map, title, tags, starred, palette } = body as {
-      id?: string;
-      map?: VisionMap;
-      title?: string;
-      tags?: string[];
-      starred?: boolean;
-      palette?: string;
-    };
+    const parseResult = SaveMapSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { code: "VALIDATION_ERROR", message: "Datos del mapa inválidos." },
+        { status: 400 }
+      );
+    }
+    const { id, map: rawMap, title, tags, starred, palette } = parseResult.data;
+    const map = rawMap as VisionMap | undefined;
 
     if (!map && !id) {
       return NextResponse.json(

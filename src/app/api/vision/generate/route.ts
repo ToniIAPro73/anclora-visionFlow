@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import ZAI from "z-ai-web-dev-sdk";
 import {
   ANCLORA_APPS,
@@ -14,6 +15,10 @@ import type {
   VisionNode,
 } from "@/lib/vision-map";
 import { autoConnect, layoutVisionMap } from "@/lib/vision-map";
+
+const GenerateSchema = z.object({
+  idea: z.string().min(3).max(2000).trim(),
+});
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -142,14 +147,14 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
     const body = await req.json().catch(() => ({}));
-    const idea: string = (body.idea || "").toString().trim();
-
-    if (!idea || idea.length < 3) {
+    const parseResult = GenerateSchema.safeParse(body);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: "Debes proporcionar una idea, proyecto o problema." },
+        { code: "VALIDATION_ERROR", message: "Debes proporcionar una idea válida (3-2000 caracteres)." },
         { status: 400 }
       );
     }
+    const idea = parseResult.data.idea;
 
     // Load the catalog from DB (with hardcoded defaults as fallback)
     const { catalogText, apps: catalogApps } = await getCatalogForPrompt(8);
@@ -345,9 +350,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(visionMap);
   } catch (err) {
     console.error("generate endpoint error:", err);
-    const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json(
-      { error: `No se pudo generar el mapa visual: ${message}` },
+      { code: "INTERNAL_ERROR", message: "No se pudo generar el mapa visual. Inténtalo de nuevo." },
       { status: 500 }
     );
   }

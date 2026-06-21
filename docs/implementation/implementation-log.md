@@ -169,6 +169,41 @@
 
 ---
 
+## TASK-1001 — DONE
+
+- Requisitos: REQ-AUTH-002, REQ-AUTH-003, REQ-PROP-001, REQ-PROP-002
+- Diseño: DES-DATA-002, GATE-DB-001 aprobado con condiciones vinculantes
+- Alcance: fundación de datos/gobernanza sin auth completa, sin selector de workspace, sin UI de
+  miembros, sin Nexus, sin SyncXML y sin handoffs externos.
+- Workspace canónico: `workspace_anclora_internal`, slug `anclora-internal`, creado por migración de
+  forma determinista e idempotente para bases nuevas.
+- Archivos:
+  - prisma/schema.prisma — modelos `Workspace`, `WorkspaceMember`, relaciones de ownership,
+    aprobación y revisión, `workspaceId` obligatorio en mapas/catálogo, `@@unique([workspaceId, slug])`.
+  - prisma/migrations/20260621120000_add_workspace_governance/migration.sql — migración versionada
+    con reconstrucción SQLite para `workspaceId NOT NULL`, preservación de filas y metadata TASK-1006.
+  - src/lib/workspace-context.ts — workspace canónico server-side y validadores centrales de roles/estados.
+  - src/app/api/vision/maps/route.ts y maps/[id]/route.ts — list/read/update/delete/save scoped por
+    workspace resuelto en servidor; `workspaceId`, estados y aprobaciones del payload libre se ignoran.
+  - src/lib/anclora-catalog.ts — catálogo scoped por workspace, upsert por `[workspaceId, slug]`,
+    update/delete con comprobación scoped previa.
+  - Tests TASK-1001 — migración legacy SQLite, base canónica, scoped maps, catálogo scoped, rechazo de
+    governance forged, validación de roles/estados y privacidad de scope.
+- Estrategia sin autenticación: single-workspace compatibility mode. Las rutas actuales resuelven
+  `workspace_anclora_internal` internamente y no aceptan workspace desde body/query/cookies/UI.
+- Datos históricos: mapas a `draft`, catálogo a `active`, `ownerId`, `approvedById` y `reviewedById`
+  quedan `null` al no existir identidad verificable. No se inventan usuarios ni memberships.
+- Nueva base: `DATABASE_URL=file:./new-test.sqlite bunx prisma migrate deploy` aplicado en copia temporal;
+  workspace canónico creado, `PRAGMA foreign_key_check` limpio, `workspaceId` obligatorio verificado.
+- Legacy temporal: `/tmp/visionflow-task1001-legacy-QOmZ4X/legacy.sqlite`, 1 `VisionMapRecord` y 1
+  `AncloraAppRecord`; conteos `1|1->1|1`, JSON/connections/tags/catálogo/metadata TASK-1006 preservados.
+- Gates: lint PASS, typecheck PASS, test PASS (72/72), build PASS, `prisma validate` PASS.
+- Riesgo residual: no es multitenancy real hasta TASK-1002/auth/selector; el workspace canónico es modo
+  compatibilidad de un solo workspace.
+- Rollback: revertir commits TASK-1001 y restaurar backup SQLite previo a migración.
+
+---
+
 ## TASK-1008 — DONE
 
 - Requisitos: REQ-QA-001, REQ-QA-002, DES-DEC-009

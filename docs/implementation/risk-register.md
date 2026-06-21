@@ -8,7 +8,7 @@
 | RISK-AUTH-001 | Sin auth en ninguna ruta API (maps, catalog, generate) | CRÍTICA | BLOQUEADO | TASK-0005 | GATE-AUTH-001/DEC-AUTH-001 |
 | RISK-SDK-001 | z-ai-web-dev-sdk propietario y opaco (sin repositorio OSS verificable) | ALTA | BLOQUEADO | TASK-0003 | GATE-OSS-001/DEC-OSS-001 |
 | RISK-INJ-001 | agentsMd/readme incluidos en prompts LLM sin sanitizar (slice no es sanitización) | CRÍTICA | ACTIVO → TASK-0004 | TASK-0004 | — |
-| RISK-SCHEMA-001 | VisionMapRecord sin userId/workspaceId — datos no aislados por usuario | ALTA | FASE 1 | TASK-1001 | GATE-DB-001 |
+| RISK-SCHEMA-001 | VisionMapRecord sin userId/workspaceId — datos no aislados por workspace | ALTA | MITIGADO PARCIAL | TASK-1001 | GATE-DB-001 |
 | RISK-NEXUS-001 | Sin contrato Nexus firmado | ALTA | BLOQUEADO | TASK-1004 | GATE-NEXUS-001/DEC-NEXUS-001 |
 | RISK-ZOD-001 | Rutas POST maps y catalog aceptan body sin validación Zod | ALTA | ACTIVO → TASK-0006 | TASK-0006 | — |
 | RISK-HEADERS-001 | Sin security headers HTTP (CSP, X-Frame-Options, etc.) en next.config.ts | MEDIA | ACTIVO → TASK-0008 | TASK-0008 | — |
@@ -18,6 +18,8 @@
 | RISK-RATE-002 | Rate limit local no coordina múltiples réplicas ni sobrevive reinicios | MEDIA | ACEPTADO | TASK-1007 | DEC-DB-001 |
 | RISK-RATE-003 | Next.js standalone escucha en `0.0.0.0` si se arranca sin `HOSTNAME` explícito | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RECEIPT-SECRET-001 | `VISIONFLOW_GENERATION_RECEIPT_SECRET` efímero invalida recibos tras restart | BAJA | OPERATIVO | TASK-1006 | — |
+| RISK-WORKSPACE-001 | Modo compatibilidad usa un único workspace canónico hasta auth/workspace selector | MEDIA | ACEPTADO | TASK-1001 | GATE-DB-001 |
+| RISK-WORKSPACE-002 | Migración TASK-1001 reconstruye tablas SQLite; requiere backup y validación real antes de producción | ALTA | MITIGADO | TASK-1001 | GATE-DB-001 |
 
 ## Notas de evidencia
 
@@ -143,3 +145,30 @@ desarrollo local.
 ### RISK-ZOD-001
 
 `maps/route.ts` línea 41: body destructuring sin schema. `catalog/route.ts` línea 23: `fields` tipado como `Record<string, unknown>` pasado directamente a `updateCatalogAppFields`.
+
+### RISK-SCHEMA-001
+
+Mitigación TASK-1001: `VisionMapRecord` y `AncloraAppRecord` tienen `workspaceId` obligatorio y FK
+`onDelete: Restrict` hacia `Workspace`. Todas las rutas actuales resuelven
+`workspace_anclora_internal` en servidor y no aceptan workspace desde cliente.
+
+Residual: todavía no hay auth ni selector de workspace; por tanto no se debe presentar como
+multitenancy real. TASK-1002/auth debe introducir identidad verificable, membresías efectivas y
+autorización por rol.
+
+### RISK-WORKSPACE-001
+
+Aceptado por GATE-DB-001: single-workspace compatibility mode hasta que se aprueben auth, selector y
+RBAC efectivo. Los payloads con `workspaceId`, `status`, `approvedById`, `approvedAt` o `reviewedById`
+se ignoran en rutas actuales.
+
+### RISK-WORKSPACE-002
+
+Mitigación: migración versionada `20260621120000_add_workspace_governance` probada en base nueva con
+`migrate deploy` y en copia legacy temporal con filas no triviales. Evidencia SQLite:
+
+- `VisionMapRecord.workspaceId`: `TEXT notnull=1`.
+- `AncloraAppRecord.workspaceId`: `TEXT notnull=1`.
+- `PRAGMA foreign_key_check`: sin filas.
+- Conteos legacy: `1|1->1|1`.
+- Metadata TASK-1006 preservada: `promptVersion`, `llmModel`, `tokensUsed`.

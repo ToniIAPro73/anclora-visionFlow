@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getLlmClient, llmModel } from "@/lib/llm-client";
+import { getLlmClient, llmModel, PROMPT_VERSION } from "@/lib/llm-client";
 import { repairTruncatedJson } from "@/lib/llm-utils";
+import { createGenerationReceipt } from "@/lib/generation-receipt";
+import {
+  checkGenerationRateLimit,
+  getGenerationRateLimitConfig,
+  getGenerationRateLimitKey,
+} from "@/lib/generation-rate-limit";
 import {
   ANCLORA_APPS,
   findRelevantApps,
@@ -83,6 +89,27 @@ SALIDA JSON:
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
+    const rateLimitConfig = getGenerationRateLimitConfig();
+    const rateLimit = checkGenerationRateLimit(
+      getGenerationRateLimitKey(req, rateLimitConfig),
+      rateLimitConfig
+    );
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          code: "RATE_LIMITED",
+          message:
+            "Has alcanzado el límite temporal de generación. Espera unos segundos antes de intentarlo de nuevo.",
+        },
+        {
+          status: 429,
+          headers: rateLimit.retryAfterSeconds
+            ? { "Retry-After": String(rateLimit.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const parseResult = GenerateSchema.safeParse(body);
     if (!parseResult.success) {
@@ -149,7 +176,8 @@ export async function POST(req: NextRequest) {
     });
 
     const elapsed = Date.now() - startTime;
-    console.log(`[vision/generate] LLM responded in ${elapsed}ms`);
+    const tokensUsed = completion.usage?.total_tokens ?? null;
+    console.log(`[vision/generate] LLM responded in ${elapsed}ms, tokens=${tokensUsed ?? "n/a"}`);
 
     const content = completion.choices?.[0]?.message?.content ?? "";
 
@@ -282,7 +310,15 @@ export async function POST(req: NextRequest) {
       apps,
       generatedAt: new Date().toISOString(),
       palette: "anclora",
+      promptVersion: PROMPT_VERSION,
+      llmModel,
+      tokensUsed,
     };
+    visionMap.generationReceipt = createGenerationReceipt(visionMap, {
+      promptVersion: PROMPT_VERSION,
+      llmModel,
+      tokensUsed,
+    });
 
     return NextResponse.json(visionMap);
   } catch (err) {
@@ -298,6 +334,8 @@ export async function GET() {
   return NextResponse.json({
     name: "AncloraVisionFlow · Generador de mapas visuales",
     status: "ok",
+    promptVersion: PROMPT_VERSION,
+    llmModel,
     apps: ANCLORA_APPS.map((a) => a.slug),
   });
 }

@@ -1,0 +1,72 @@
+name: Promote production to main
+
+on:
+  workflow_dispatch: {}
+
+env:
+  DATABASE_URL: "file:./dev.db"
+  NEXTAUTH_SECRET: "ci-secret-placeholder"
+  NEXTAUTH_URL: "http://localhost:3000"
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Checkout main
+        run: git checkout main
+
+      - name: Merge production
+        run: git merge --no-ff origin/production -m "chore: merge production to main [ci-skip]"
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Test
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Push main
+        if: success()
+        run: git push origin main
+
+      - name: Notify
+        if: success()
+        run: echo "✓ Successfully synchronized production to main"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "✗ Production to main synchronization failed"
+          echo "Merge may have conflicts. Resolve manually."
+        continue-on-error: true

@@ -1,0 +1,86 @@
+name: Promote staging to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g., v0.2.0)"
+        required: false
+
+env:
+  DATABASE_URL: "file:./dev.db"
+  NEXTAUTH_SECRET: "ci-secret-placeholder"
+  NEXTAUTH_URL: "http://localhost:3000"
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Checkout production
+        run: git checkout production
+
+      - name: Merge staging
+        run: git merge --no-ff origin/staging -m "chore: merge staging to production [ci-skip]"
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Test
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Create tag
+        if: github.event.inputs.version
+        run: git tag -a "${{ github.event.inputs.version }}" -m "Release ${{ github.event.inputs.version }}"
+
+      - name: Push production
+        if: success()
+        run: git push origin production
+
+      - name: Push tag
+        if: success() && github.event.inputs.version
+        run: git push origin "${{ github.event.inputs.version }}"
+
+      - name: Success
+        if: success()
+        run: |
+          echo "✓ Successfully promoted staging to production"
+          echo "Version: ${{ github.event.inputs.version }}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "✗ Promotion failed"
+          echo "Check logs above for details."
+        continue-on-error: true

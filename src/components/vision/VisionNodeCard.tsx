@@ -77,11 +77,9 @@ function VisionNodeCardInner({
     if (presentationMode || editing) return;
     setDragging(true);
     onDragStart(node.id, e);
-    document.addEventListener(
-      "mouseup",
-      () => setDragging(false),
-      { once: true }
-    );
+    document.addEventListener("mouseup", () => setDragging(false), {
+      once: true,
+    });
   }
 
   function saveDraft() {
@@ -117,7 +115,9 @@ function VisionNodeCardInner({
         top: node.y,
         width: cardWidth,
         opacity: isHighlighted || isActive ? 1 : undefined,
-        filter: isHighlighted ? `drop-shadow(0 0 16px ${meta.color}99)` : undefined,
+        filter: isHighlighted
+          ? `drop-shadow(0 0 16px ${meta.color}99)`
+          : undefined,
       }}
       onMouseDown={handleMouseDown}
       onClick={(e) => {
@@ -163,12 +163,7 @@ function VisionNodeCardInner({
             metaLabel={meta.labelSingular}
           />
         ) : (
-          <ReadView
-            node={node}
-            meta={meta}
-            Icon={Icon}
-            isIdea={isIdea}
-          />
+          <ReadView node={node} meta={meta} Icon={Icon} isIdea={isIdea} />
         )}
       </motion.div>
     </div>
@@ -219,14 +214,14 @@ function ReadView({
                 node.priority === "alta"
                   ? "rgba(255,107,91,0.18)"
                   : node.priority === "media"
-                  ? "rgba(245,158,11,0.18)"
-                  : "rgba(125,211,252,0.18)",
+                    ? "rgba(245,158,11,0.18)"
+                    : "rgba(125,211,252,0.18)",
               color:
                 node.priority === "alta"
                   ? "#FF6B5B"
                   : node.priority === "media"
-                  ? "#F59E0B"
-                  : "#7DD3FC",
+                    ? "#F59E0B"
+                    : "#7DD3FC",
             }}
           >
             {node.priority}
@@ -253,16 +248,25 @@ function ReadView({
           {(() => {
             const target = parseFloat(node.target);
             const current = parseFloat(node.current);
-            const pct = isNaN(target) || target === 0
-              ? 0
-              : Math.min(100, Math.round((current / target) * 100));
+            const pct =
+              isNaN(target) || target === 0
+                ? 0
+                : Math.min(100, Math.round((current / target) * 100));
             return (
               <div>
                 <div className="flex justify-between items-baseline mb-1">
                   <span className="text-[11px] font-mono font-semibold">
-                    {node.current}{node.unit || ""} <span className="text-muted-foreground">/ {node.target}{node.unit || ""}</span>
+                    {node.current}
+                    {node.unit || ""}{" "}
+                    <span className="text-muted-foreground">
+                      / {node.target}
+                      {node.unit || ""}
+                    </span>
                   </span>
-                  <span className="text-[10px] font-bold" style={{ color: meta.color }}>
+                  <span
+                    className="text-[10px] font-bold"
+                    style={{ color: meta.color }}
+                  >
                     {pct}%
                   </span>
                 </div>
@@ -325,7 +329,10 @@ function ReadView({
           </span>
         )}
         {node.contact && (
-          <span className="text-[10px] text-muted-foreground truncate max-w-[120px]" title={node.contact}>
+          <span
+            className="text-[10px] text-muted-foreground truncate max-w-30"
+            title={node.contact}
+          >
             ✉ {node.contact}
           </span>
         )}
@@ -370,7 +377,10 @@ function EditorView({
     "w-full text-xs bg-background/70 border border-border/60 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring";
 
   return (
-    <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div className="flex items-center justify-between mb-2">
         <span
           className="text-[10px] uppercase tracking-wider font-bold"
@@ -414,7 +424,9 @@ function EditorView({
       </label>
       <textarea
         value={node.description}
-        onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+        onChange={(e) =>
+          setDraft((p) => ({ ...p, description: e.target.value }))
+        }
         className={inputCls + " mb-2 resize-none"}
         rows={3}
         maxLength={500}
@@ -432,7 +444,8 @@ function EditorView({
             onChange={(e) =>
               setDraft((p) => ({
                 ...p,
-                cost: e.target.value === "" ? undefined : Number(e.target.value),
+                cost:
+                  e.target.value === "" ? undefined : Number(e.target.value),
               }))
             }
             className={inputCls}
@@ -462,31 +475,43 @@ function EditorView({
       {node.category === "kpi" && (
         <div className="grid grid-cols-3 gap-1.5 mb-2">
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Actual</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Actual
+            </label>
             <input
               type="text"
               value={node.current || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, current: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, current: e.target.value }))
+              }
               className={inputCls}
               placeholder="42"
             />
           </div>
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Meta</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Meta
+            </label>
             <input
               type="text"
               value={node.target || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, target: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, target: e.target.value }))
+              }
               className={inputCls}
               placeholder="85"
             />
           </div>
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Unidad</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Unidad
+            </label>
             <input
               type="text"
               value={node.unit || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, unit: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, unit: e.target.value }))
+              }
               className={inputCls}
               placeholder="%"
             />
@@ -497,10 +522,14 @@ function EditorView({
       {node.category === "stakeholder" && (
         <div className="grid grid-cols-2 gap-1.5 mb-2">
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Rol</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Rol
+            </label>
             <select
               value={node.role || "Contributor"}
-              onChange={(e) => setDraft((p) => ({ ...p, role: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, role: e.target.value }))
+              }
               className={inputCls}
             >
               <option>Sponsor</option>
@@ -510,11 +539,15 @@ function EditorView({
             </select>
           </div>
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Contacto</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Contacto
+            </label>
             <input
               type="text"
               value={node.contact || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, contact: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, contact: e.target.value }))
+              }
               className={inputCls}
               placeholder="email@anclora.es"
             />
@@ -525,11 +558,15 @@ function EditorView({
       {node.category === "timeline" && (
         <div className="grid grid-cols-2 gap-1.5 mb-2">
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Fecha</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Fecha
+            </label>
             <input
               type="text"
               value={node.date || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, date: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, date: e.target.value }))
+              }
               className={inputCls}
               placeholder="Q1 2026"
             />
@@ -539,7 +576,9 @@ function EditorView({
               <input
                 type="checkbox"
                 checked={!!node.milestone}
-                onChange={(e) => setDraft((p) => ({ ...p, milestone: e.target.checked }))}
+                onChange={(e) =>
+                  setDraft((p) => ({ ...p, milestone: e.target.checked }))
+                }
                 className="accent-current"
                 style={{ accentColor: metaColor }}
               />
@@ -552,21 +591,29 @@ function EditorView({
       {(node.category === "step" || node.time !== undefined) && (
         <div className="grid grid-cols-2 gap-1.5 mb-2">
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Tiempo</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Tiempo
+            </label>
             <input
               type="text"
               value={node.time || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, time: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, time: e.target.value }))
+              }
               className={inputCls}
               placeholder="2 semanas"
             />
           </div>
           <div>
-            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">Owner</label>
+            <label className="block text-[9px] uppercase text-muted-foreground mb-0.5">
+              Owner
+            </label>
             <input
               type="text"
               value={node.owner || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, owner: e.target.value }))}
+              onChange={(e) =>
+                setDraft((p) => ({ ...p, owner: e.target.value }))
+              }
               className={inputCls}
               placeholder="Backend"
             />
@@ -584,7 +631,10 @@ function EditorView({
             onChange={(e) =>
               setDraft((p) => ({
                 ...p,
-                bullets: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean),
+                bullets: e.target.value
+                  .split("\n")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
               }))
             }
             className={inputCls + " resize-none"}

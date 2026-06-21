@@ -1,16 +1,18 @@
-# Verification Matrix — AncloraVisionFlow Fase 0
-**Fecha:** 2026-06-21
+# Verification Matrix — AncloraVisionFlow Fase 0 + Fase 1 parcial
+
+**Actualizado:** 2026-06-21
 
 | TASK | REQ | DESIGN | Archivo(s) | Test | Commit | Estado |
 |---|---|---|---|---|---|---|
-| TASK-0001 | REQ-SEC-001 | DES-SEC-001 | Caddyfile | Verificación manual (no hay XTransformPort) | pendiente | TODO |
-| TASK-0002 | REQ-SEC-002 | DES-DEVOPS-001 | next.config.ts | bun run build sin errores TS | pendiente | TODO |
-| TASK-0003 | REQ-OSS-001, REQ-OSS-002 | DES-AI-002 | route.ts, package.json | — | — | BLOCKED (DEC-OSS-001) |
-| TASK-0004 | REQ-AI-006, REQ-ECOSYSTEM-006 | DES-AI-004 | sanitize.ts, anclora-catalog.ts | sanitize.test.ts | pendiente | TODO |
-| TASK-0005 | REQ-AUTH-001 | DES-SEC-002 | middleware.ts | — | — | BLOCKED (DEC-AUTH-001) |
-| TASK-0006 | REQ-SEC-004, REQ-SEC-007 | DES-SEC-003 | maps/route.ts, maps/[id]/route.ts, catalog/route.ts, catalog/[id]/route.ts, generate/route.ts | cobertura Zod | pendiente | TODO |
-| TASK-0007 | REQ-SEC-008 | DES-DEVOPS-002 | .gitignore | git grep scan | N/A | DONE |
-| TASK-0008 | REQ-SEC-009 | DES-SEC-004 | next.config.ts | curl -I headers | pendiente | TODO |
+| TASK-0001 | REQ-SEC-001 | DES-SEC-001 | Caddyfile | git grep XTransformPort → 0 | 93772ff | DONE |
+| TASK-0002 | REQ-SEC-002 | DES-DEVOPS-001 | next.config.ts | bun run build ✓ | 409bedd | DONE |
+| TASK-0003 | REQ-OSS-001, REQ-OSS-002 | DES-AI-002 | llm-client.ts, route.ts, package.json | build ✓, getLlmClient lazy | 409bedd + e9ac3aa | DONE |
+| TASK-0004 | REQ-AI-006, REQ-ECOSYSTEM-006 | DES-AI-004 | sanitize.ts, generate/route.ts | sanitize.test.ts (9 casos) ✓ | 7b977a8 | DONE |
+| TASK-0005 | REQ-AUTH-001 | DES-SEC-002 | proxy.ts | 401 sin x-api-key | 409bedd + e9ac3aa | DONE |
+| TASK-0006 | REQ-SEC-004, REQ-SEC-007 | DES-SEC-003 | maps/route.ts, maps/[id]/route.ts, catalog/route.ts, catalog/[id]/route.ts, generate/route.ts | safeParse en 5 rutas | 2e56091 | DONE |
+| TASK-0007 | REQ-SEC-008 | DES-DEVOPS-002 | .gitignore | git grep scan CLEAN | N/A | DONE |
+| TASK-0008 | REQ-SEC-009 | DES-SEC-004 | next.config.ts | headers() verificados en code-review | 6443811 | DONE |
+| TASK-1008 | REQ-QA-001, REQ-QA-002 | DES-DEC-009 | vitest.config.ts, llm-utils.ts, *.test.ts/tsx | 29/29 vitest run ✓ | 513b951 + e9ac3aa | DONE |
 
 ## Notas de verificación
 

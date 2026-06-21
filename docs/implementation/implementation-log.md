@@ -123,11 +123,14 @@
   - src/app/api/vision/generate/route.ts — captura `completion.usage?.total_tokens`, incluye metadatos en respuesta; GET devuelve `promptVersion` y `llmModel`
   - src/app/api/vision/maps/route.ts — persiste `promptVersion`, `llmModel`, `tokensUsed` al guardar; incluye en GET list
   - src/app/api/vision/maps/[id]/route.ts — incluye metadatos en respuesta GET
-  - src/lib/generation-metadata.test.ts — 11 casos de test
+  - src/lib/generation-metadata.test.ts — 46 casos de test (incluye protección contra payload falsificado)
 - Interpretación: Los metadatos viajan en el objeto VisionMap desde generate y se persisten cuando el usuario guarda el mapa en `/api/vision/maps`. Registros históricos sin datos de trazabilidad quedan con null (sin atribuir versiones inexistentes).
-- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado.
+- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado. Client-reported en save.
+- `promptVersion` y `llmModel`: server-authoritative en POST /maps — el servidor usa siempre sus valores, ignorando payload del cliente (REQ-AI-002 auditabilidad).
 - Compatibilidad histórica: campos nullable en schema — registros existentes quedan con null.
-- Verificación: lint PASS, typecheck PASS, test 40/40 PASS, build PASS, prisma validate PASS.
+- Migración: baseline `20260621062333_add_generation_metadata` crea todos los modelos. No auto-aplicable a DBs preexistentes sin historial Prisma — ver RISK-MIGRATE-001.
+- Rama: `feat/visionflow-task-1006-integrated` basada en `0783055` (tip de TASK-1008) para preservar continuidad de commits.
+- Verificación: lint PASS, typecheck PASS, test 46/46 PASS, build PASS, prisma validate PASS.
 
 ---
 

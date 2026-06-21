@@ -12,7 +12,7 @@
 | TASK-0006 | REQ-SEC-004, REQ-SEC-007 | DES-SEC-003 | maps/route.ts, maps/[id]/route.ts, catalog/route.ts, catalog/[id]/route.ts, generate/route.ts | safeParse en 5 rutas | 2e56091 | DONE |
 | TASK-0007 | REQ-SEC-008 | DES-DEVOPS-002 | .gitignore | git grep scan CLEAN | N/A | DONE |
 | TASK-0008 | REQ-SEC-009 | DES-SEC-004 | next.config.ts | headers() verificados en code-review | 6443811 | DONE |
-| TASK-1006 | REQ-AI-002, REQ-AI-007 | DES-AI-003 | llm-client.ts, vision-map.ts, schema.prisma, generate/route.ts, maps/route.ts, maps/[id]/route.ts, generation-metadata.test.ts | 40/40 vitest run ✓ | 0af6533 + b5fe3e6 | DONE |
+| TASK-1006 | REQ-AI-002, REQ-AI-007 | DES-AI-003 | llm-client.ts, vision-map.ts, schema.prisma, generate/route.ts, maps/route.ts, maps/[id]/route.ts, generation-metadata.test.ts | 46/46 vitest run ✓ | 0a042fd + 423481f + correctivos | DONE |
 | TASK-1008 | REQ-QA-001, REQ-QA-002 | DES-DEC-009 | vitest.config.ts, llm-utils.ts, *.test.ts/tsx | 29/29 vitest run ✓ | 513b951 + e9ac3aa | DONE |
 
 ## Notas de verificación

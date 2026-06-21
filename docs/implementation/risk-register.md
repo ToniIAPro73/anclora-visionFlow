@@ -16,6 +16,7 @@
 | RISK-TOKENS-001 | tokensUsed era client-reported en POST /maps — no verificable server-side post-generación | BAJA | MITIGADO | TASK-1006 | — |
 | RISK-RATE-001 | Sin rate limit en `/api/vision/generate` permite abuso/coste LLM accidental | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RATE-002 | Rate limit local no coordina múltiples réplicas ni sobrevive reinicios | MEDIA | ACEPTADO | TASK-1007 | DEC-DB-001 |
+| RISK-RATE-003 | Next.js standalone escucha en `0.0.0.0` si se arranca sin `HOSTNAME` explícito | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RECEIPT-SECRET-001 | `VISIONFLOW_GENERATION_RECEIPT_SECRET` efímero invalida recibos tras restart | BAJA | OPERATIVO | TASK-1006 | — |
 
 ## Notas de evidencia
@@ -108,9 +109,13 @@ con `Retry-After` en respuestas 429. Variables configurables:
 - `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS`: default `10`, rango `1..1000`.
 - `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS`: default `60`, rango `1..3600`.
 - `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS`: default `1000`, rango `10..100000`.
+- `VISIONFLOW_TRUST_PROXY_HEADERS`: default `false`; solo `true` confía en `X-Real-IP` y
+  `X-Forwarded-For` saneados por Caddy.
 
 Si faltan o están fuera de rango, se usan defaults. El estado no guarda prompts, mapas, API keys
 ni contenido libre; solo clave IP, contador, `resetAt` y `lastSeenAt`.
+En modo directo/no confiable se ignoran headers IP enviados por cliente y se usa la clave conservadora
+`ip:direct`.
 
 ### RISK-RATE-002
 
@@ -118,6 +123,16 @@ Limitación aceptada para TASK-1007: el contador es local por proceso, se reinic
 la instancia y no coordina varias réplicas. Si la app escala horizontalmente, este control no debe
 presentarse como rate limit distribuido de producción; requerirá diseño posterior con storage
 compartido aprobado.
+
+### RISK-RATE-003
+
+Evidencia: `.next/standalone/server.js` define `hostname = process.env.HOSTNAME || '0.0.0.0'`.
+Antes de la corrección, `bun run start` no fijaba `HOSTNAME`, por lo que Next podía quedar expuesto
+directamente en el puerto 3000 si la red/firewall lo permitía. Mitigación aplicada: `bun run start`
+exporta `HOSTNAME=127.0.0.1`; Caddy permanece como entrada en `:81` y reenvía a `localhost:3000`.
+Si staging/producción usan otro supervisor o comando, deben conservar `HOSTNAME=127.0.0.1` o un
+aislamiento equivalente. No confiar en headers de IP salvo `VISIONFLOW_TRUST_PROXY_HEADERS=true`
+detrás de Caddy confiable.
 
 ### RISK-RECEIPT-SECRET-001
 

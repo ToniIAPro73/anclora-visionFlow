@@ -141,20 +141,24 @@
 
 - Requisitos: REQ-AI-005, REQ-SEC-005
 - Archivos:
-  - src/lib/generation-rate-limit.ts — limitador local en memoria por proceso, TTL por ventana y capacidad máxima
+  - src/lib/generation-rate-limit.ts — limitador local en memoria por proceso, TTL por ventana, capacidad máxima y modo explícito de proxy confiable
   - src/app/api/vision/generate/route.ts — aplica rate limit al inicio de `POST` antes de leer body, catálogo o LLM
   - src/lib/generation-rate-limit.test.ts — casos unitarios de límite, TTL, evicción, aislamiento y privacidad
   - src/app/api/vision/generate/route.test.ts — prueba 429 y no llamada al cliente LLM
-  - package.json — script `typecheck` para el gate solicitado
+  - package.json — script `typecheck` para el gate solicitado y `start` ligado a `127.0.0.1`
 - Política aplicada: 10 peticiones por 60 segundos por clave, configurable por entorno.
 - Variables:
   - `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS`: default `10`, rango `1..1000`.
   - `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS`: default `60`, rango `1..3600`.
   - `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS`: default `1000`, rango `10..100000`.
+  - `VISIONFLOW_TRUST_PROXY_HEADERS`: default `false`; solo `true` permite usar `X-Real-IP`/`X-Forwarded-For`.
   - Valores ausentes o fuera de rango usan defaults seguros.
-- Clave: sin autenticación de usuario/workspace aprobada, se usa IP. Detrás de Caddy se prioriza
-  `X-Real-IP`, que el Caddyfile sobrescribe con `{remote_host}`; fallback a primer
-  `X-Forwarded-For`; sin proxy/headers se agrupa como `ip:local`.
+- Validación proxy: el standalone generado usa `HOSTNAME || '0.0.0.0'`; por tanto el estado previo era
+  `DIRECT_ACCESS_POSSIBLE`. Corrección: `bun run start` define `HOSTNAME=127.0.0.1`.
+- Clave: sin autenticación de usuario/workspace aprobada, se usa IP solo si
+  `VISIONFLOW_TRUST_PROXY_HEADERS=true`. Detrás de Caddy confiable se prioriza `X-Real-IP`, que el
+  Caddyfile sobrescribe con `{remote_host}`; fallback a primer `X-Forwarded-For`; sin proxy/headers se
+  agrupa como `ip:local`. En modo directo/no confiable se ignoran headers y se usa `ip:direct`.
 - Respuesta 429: JSON seguro en español con `code: "RATE_LIMITED"` y header `Retry-After`.
 - Privacidad: el estado del limitador solo guarda clave IP normalizada, contador, reset y último uso.
   No guarda prompts, mapas, API keys ni contenido libre.

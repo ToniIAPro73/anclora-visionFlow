@@ -642,10 +642,6 @@ Cumple: REQ-QA-003, REQ-SEC-002.
 | `NEXTAUTH_URL` | URL base de la app | ✅ Fase 1 |
 | `LLM_API_KEY` | API key del proveedor OSS elegido | ✅ Fase 0 (reemplaza z-ai-web-dev-sdk config) |
 | `LLM_MODEL` | Modelo LLM (ej. claude-sonnet-4-6) | ✅ Fase 0 |
-| `VISIONFLOW_GENERATION_RECEIPT_SECRET` | Firma persistente de recibos de generación | ✅ staging/prod |
-| `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS` | Peticiones permitidas por ventana (default 10) | No |
-| `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS` | Ventana del rate limit (default 60s) | No |
-| `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS` | Capacidad máxima del store local (default 1000) | No |
 | `NEXUS_API_URL` | URL base API Nexus | Fase 1 |
 | `NEXUS_API_KEY` | Auth Nexus | Fase 1 |
 

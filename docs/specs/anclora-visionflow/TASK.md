@@ -268,6 +268,7 @@
 - [x] Límite configurable: N peticiones por ventana de tiempo
 - [x] Retorna 429 con header `Retry-After` cuando se supera el límite
 - [x] Prioridad OSS: no usar servicios SaaS de rate limiting sin gate aprobado
+- [x] Modo explícito de proxy confiable para usar headers IP; modo directo ignora headers falsificables
 
 ---
 

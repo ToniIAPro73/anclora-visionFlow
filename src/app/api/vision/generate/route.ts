@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { llmClient, llmModel } from "@/lib/llm-client";
+import { repairTruncatedJson } from "@/lib/llm-utils";
 import {
   ANCLORA_APPS,
   findRelevantApps,
@@ -48,70 +49,6 @@ interface LLMResponse {
   nodes: RawNode[];
 }
 
-/**
- * Repair JSON that was truncated because the LLM ran out of tokens.
- * Closes open strings, arrays, and objects in the correct order.
- * Also drops the last incomplete object if it can't be salvaged.
- */
-function repairTruncatedJson(jsonStr: string): string {
-  let s = jsonStr.trim();
-
-  // If the last character is a comma, drop it
-  while (s.endsWith(",")) s = s.slice(0, -1).trimEnd();
-
-  // Walk the string tracking open brackets/braces and string state
-  const stack: ("{" | "[")[] = [];
-  let inString = false;
-  let escape = false;
-
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (escape) {
-      escape = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escape = true;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (ch === "{") stack.push("{");
-    else if (ch === "[") stack.push("[");
-    else if (ch === "}") stack.pop();
-    else if (ch === "]") stack.pop();
-  }
-
-  // If we ended inside a string, close it
-  if (inString) {
-    s += '"';
-  }
-
-  // Drop trailing partial object/array entries:
-  // Remove trailing incomplete key-value or object
-  // e.g. ...{"category":"step","title":"foo  → remove the last partial object
-  // Find the last complete object/array element by scanning back to the last valid comma/brace
-  // Simple heuristic: drop trailing characters until we end with } or ] or , or whitespace after a complete value
-  // Then close all open brackets in reverse order
-  while (stack.length > 0) {
-    const top = stack.pop();
-    if (top === "{") {
-      // Before closing, drop trailing comma if present
-      s = s.trimEnd();
-      if (s.endsWith(",")) s = s.slice(0, -1);
-      s += "}";
-    } else if (top === "[") {
-      s = s.trimEnd();
-      if (s.endsWith(",")) s = s.slice(0, -1);
-      s += "]";
-    }
-  }
-
-  return s;
-}
 
 function buildSystemPrompt(catalogText: string, allSlugs: string[]): string {
   return `Eres el motor de AncloraVisionFlow. Conviertes ideas del ecosistema Anclora Group en mapas visuales.

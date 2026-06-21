@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   typescript: {
-    ignoreBuildErrors: true, // TASK-0002: cambiar a false tras bun run typecheck limpio
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
   experimental: {

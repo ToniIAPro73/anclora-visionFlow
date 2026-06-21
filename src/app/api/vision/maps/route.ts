@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { getVerifiedGenerationMetadata } from "@/lib/generation-receipt";
 import type { VisionMap } from "@/lib/vision-map";
 
 const SaveMapSchema = z.object({
@@ -33,6 +34,9 @@ export async function GET() {
       updatedAt: r.updatedAt,
       appsCount: safeParseArr(r.appsJson).length,
       nodesCount: safeParseArr(r.nodesJson).length,
+      promptVersion: r.promptVersion ?? null,
+      llmModel: r.llmModel ?? null,
+      tokensUsed: r.tokensUsed ?? null,
     }));
     return NextResponse.json({ maps });
   } catch (err) {
@@ -83,6 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     const m = map!;
+    const genMeta = getVerifiedGenerationMetadata(m, m.generationReceipt);
     const record = await db.visionMapRecord.upsert({
       where: { id: id || "new" },
       create: {
@@ -95,6 +100,7 @@ export async function POST(req: NextRequest) {
         palette: palette || m.palette || "anclora",
         tags: Array.isArray(tags) ? tags.join(",") : "",
         starred: typeof starred === "boolean" ? starred : false,
+        ...genMeta,
       },
       update: {
         title: (title || m.idea || "Mapa sin título").slice(0, 200),
@@ -106,6 +112,7 @@ export async function POST(req: NextRequest) {
         palette: palette || m.palette || "anclora",
         tags: Array.isArray(tags) ? tags.join(",") : "",
         ...(typeof starred === "boolean" ? { starred } : {}),
+        ...genMeta,
       },
     });
 

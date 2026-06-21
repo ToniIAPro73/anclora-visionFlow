@@ -35,6 +35,9 @@ export async function GET(
       apps: safeParseArr(r.appsJson) as string[],
       generatedAt: r.createdAt.toISOString(),
       palette: (r.palette as VisionMap["palette"]) || "anclora",
+      promptVersion: r.promptVersion ?? undefined,
+      llmModel: r.llmModel ?? undefined,
+      tokensUsed: r.tokensUsed ?? null,
     };
     return NextResponse.json({
       id: r.id,

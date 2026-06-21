@@ -112,6 +112,63 @@
 
 ---
 
+## TASK-1006 — DONE
+
+- Requisitos: REQ-AI-002, REQ-AI-007, DES-AI-003
+- Archivos:
+  - src/lib/llm-client.ts — añadida constante exportada `PROMPT_VERSION = "v1.0.0"`
+  - src/lib/vision-map.ts — añadidos campos opcionales `promptVersion?`, `llmModel?`, `tokensUsed?` a `VisionMap`
+  - src/lib/generation-receipt.ts — recibo HMAC server-side con TTL y hash del mapa generado
+  - prisma/schema.prisma — añadidos `promptVersion String?`, `llmModel String?`, `tokensUsed Int?` a `VisionMapRecord`
+  - prisma/migrations/20260621062333_add_generation_metadata/ — migración versionada (inicial baseline + nuevos campos)
+  - src/app/api/vision/generate/route.ts — captura `completion.usage?.total_tokens`, emite `generationReceipt`; GET devuelve `promptVersion` y `llmModel`
+  - src/app/api/vision/maps/route.ts — persiste metadatos solo si `generationReceipt` es válido; incluye en GET list
+  - src/app/api/vision/maps/[id]/route.ts — incluye metadatos en respuesta GET
+  - src/lib/generation-metadata.test.ts — cobertura de recibo válido, alterado, caducado, sin recibo, `usage.total_tokens` ausente y privacidad
+- Interpretación: `/api/vision/generate` devuelve un mapa con un recibo firmado y de vida corta. El recibo contiene solo `promptVersion`, `llmModel`, `tokensUsed`, `issuedAt`, `expiresAt`, `mapHash`, `nonce` y versión del recibo. No contiene prompt completo, API keys ni contenido del usuario.
+- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado ni aceptado desde payload libre del cliente.
+- `promptVersion`, `llmModel` y `tokensUsed`: server-verifiable en POST /maps — el servidor ignora siempre los tres valores del cliente y solo persiste los valores del recibo si la firma, TTL y hash del mapa coinciden. Sin recibo, recibo caducado, alterado o no correspondiente al mapa, persiste `null` en los tres campos (mapa importado/no verificado).
+- Compatibilidad histórica: campos nullable en schema — registros existentes quedan con null.
+- Migración:
+  - Entorno nuevo sin tablas existentes: `bunx prisma migrate deploy`.
+  - Entorno legacy con tablas existentes y sin `_prisma_migrations`: backup verificable de SQLite, validación del esquema anterior esperado, tres `ALTER TABLE ... ADD COLUMN ...`, inspección real con `PRAGMA table_info('VisionMapRecord')`, verificación de conteo/muestra de datos y solo entonces `bunx prisma migrate resolve --applied 20260621062333_add_generation_metadata`.
+- Rama: `feat/visionflow-task-1006-integrated` basada en `0783055` (tip de TASK-1008) para preservar continuidad de commits.
+- Verificación correctiva: test focal 18/18 PASS, typecheck PASS, prueba legacy temporal PASS. Gates completos ejecutados en cierre correctivo.
+
+---
+
+## TASK-1007 — DONE
+
+- Requisitos: REQ-AI-005, REQ-SEC-005
+- Archivos:
+  - src/lib/generation-rate-limit.ts — limitador local en memoria por proceso, TTL por ventana, capacidad máxima y modo explícito de proxy confiable
+  - src/app/api/vision/generate/route.ts — aplica rate limit al inicio de `POST` antes de leer body, catálogo o LLM
+  - src/lib/generation-rate-limit.test.ts — casos unitarios de límite, TTL, evicción, aislamiento y privacidad
+  - src/app/api/vision/generate/route.test.ts — prueba 429 y no llamada al cliente LLM
+  - package.json — script `typecheck` para el gate solicitado y `start` ligado a `127.0.0.1`
+- Política aplicada: 10 peticiones por 60 segundos por clave, configurable por entorno.
+- Variables:
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_REQUESTS`: default `10`, rango `1..1000`.
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_WINDOW_SECONDS`: default `60`, rango `1..3600`.
+  - `VISIONFLOW_GENERATE_RATE_LIMIT_MAX_KEYS`: default `1000`, rango `10..100000`.
+  - `VISIONFLOW_TRUST_PROXY_HEADERS`: default `false`; solo `true` permite usar `X-Real-IP`/`X-Forwarded-For`.
+  - Valores ausentes o fuera de rango usan defaults seguros.
+- Validación proxy: el standalone generado usa `HOSTNAME || '0.0.0.0'`; por tanto el estado previo era
+  `DIRECT_ACCESS_POSSIBLE`. Corrección: `bun run start` define `HOSTNAME=127.0.0.1`.
+- Clave: sin autenticación de usuario/workspace aprobada, se usa IP solo si
+  `VISIONFLOW_TRUST_PROXY_HEADERS=true`. Detrás de Caddy confiable se prioriza `X-Real-IP`, que el
+  Caddyfile sobrescribe con `{remote_host}`; fallback a primer `X-Forwarded-For`; sin proxy/headers se
+  agrupa como `ip:local`. En modo directo/no confiable se ignoran headers y se usa `ip:direct`.
+- Respuesta 429: JSON seguro en español con `code: "RATE_LIMITED"` y header `Retry-After`.
+- Privacidad: el estado del limitador solo guarda clave IP normalizada, contador, reset y último uso.
+  No guarda prompts, mapas, API keys ni contenido libre.
+- Limitación conocida: control local por proceso, se reinicia con la instancia y no coordina réplicas.
+- Nota operativa TASK-1006: `VISIONFLOW_GENERATION_RECEIPT_SECRET` debe configurarse persistente
+  en staging/producción; secreto efímero solo para desarrollo local.
+- Verificación focal: 9/9 tests PASS, typecheck PASS. Gates completos ejecutados en cierre.
+
+---
+
 ## TASK-1008 — DONE
 
 - Requisitos: REQ-QA-001, REQ-QA-002, DES-DEC-009

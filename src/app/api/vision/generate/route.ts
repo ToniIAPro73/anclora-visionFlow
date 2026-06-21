@@ -4,6 +4,10 @@ import { getLlmClient, llmModel, PROMPT_VERSION } from "@/lib/llm-client";
 import { repairTruncatedJson } from "@/lib/llm-utils";
 import { createGenerationReceipt } from "@/lib/generation-receipt";
 import {
+  checkGenerationRateLimit,
+  getGenerationRateLimitKey,
+} from "@/lib/generation-rate-limit";
+import {
   ANCLORA_APPS,
   findRelevantApps,
   type AncloraApp,
@@ -84,6 +88,23 @@ SALIDA JSON:
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
+    const rateLimit = checkGenerationRateLimit(getGenerationRateLimitKey(req));
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          code: "RATE_LIMITED",
+          message:
+            "Has alcanzado el límite temporal de generación. Espera unos segundos antes de intentarlo de nuevo.",
+        },
+        {
+          status: 429,
+          headers: rateLimit.retryAfterSeconds
+            ? { "Retry-After": String(rateLimit.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const parseResult = GenerateSchema.safeParse(body);
     if (!parseResult.success) {

@@ -13,6 +13,7 @@ import {
   ArrowUpWideNarrow,
   Bookmark,
   Calendar,
+  Database,
   Download,
   Euro,
   Eye,
@@ -69,6 +70,7 @@ import {
 import { toast } from "sonner";
 import { VisionNodeCard } from "./VisionNodeCard";
 import { ConnectionsLayer } from "./ConnectionsLayer";
+import { CatalogDialog } from "./CatalogDialog";
 import { ANCLORA_APPS } from "@/lib/anclora-ecosystem";
 import {
   getCategoryMeta,
@@ -127,6 +129,7 @@ export function VisionBoard() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [saveTags, setSaveTags] = useState("");
@@ -749,6 +752,24 @@ export function VisionBoard() {
             </Button>
           </div>
 
+          {/* Catalog button — always visible so users can import before generating */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCatalogOpen(true)}
+                  className="h-9 w-9 bg-background/60"
+                  title="Catálogo del ecosistema Anclora"
+                >
+                  <Database size={15} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Catálogo Anclora · Importar .txt / GitHub</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           {map && (
             <div className="flex items-center gap-1.5">
               <TooltipProvider delayDuration={300}>
@@ -1363,6 +1384,9 @@ export function VisionBoard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Catalog dialog — manages the Anclora apps used by the LLM */}
+      <CatalogDialog open={catalogOpen} onOpenChange={setCatalogOpen} />
 
       {/* Library dialog */}
       <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}>

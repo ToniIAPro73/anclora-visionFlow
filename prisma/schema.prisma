@@ -35,3 +35,25 @@ model VisionMapRecord {
   @@index([starred])
   @@index([createdAt])
 }
+
+model AncloraAppRecord {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  family        String   @default("Tool") // Premium | Internal | Tool | Platform
+  tagline       String   @default("")
+  description   String   @default("")
+  stackJson     String   @default("[]") // JSON array of strings
+  capabilitiesJson String @default("[]") // JSON array of strings
+  accent        String   @default("#1dab89")
+  domain        String   @default("")
+  source        String   @default("manual") // manual | txt-import | github-import | default
+  githubUrl     String?
+  readme        String   @default("") // raw README content
+  agentsMd      String   @default("") // raw AGENTS.md / MEMORY.md context
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([family])
+  @@index([source])
+}

@@ -5,6 +5,7 @@ import {
   findRelevantApps,
   type AncloraApp,
 } from "@/lib/anclora-ecosystem";
+import { getCatalogForPrompt, type CatalogApp } from "@/lib/anclora-catalog";
 import type {
   NodeCategory,
   Priority,
@@ -106,16 +107,7 @@ function repairTruncatedJson(jsonStr: string): string {
   return s;
 }
 
-function buildSystemPrompt(apps: AncloraApp[]): string {
-  // Only include the most relevant apps (up to 6) to keep the prompt compact.
-  const appCatalog = apps
-    .slice(0, 6)
-    .map(
-      (a) =>
-        `- ${a.slug}: ${a.name} — ${a.tagline}. Capacidades: ${a.capabilities.slice(0, 3).join(", ")}.`
-    )
-    .join("\n");
-
+function buildSystemPrompt(catalogText: string, allSlugs: string[]): string {
   return `Eres el motor de AncloraVisionFlow. Conviertes ideas del ecosistema Anclora Group en mapas visuales.
 
 Genera JSON con estas categorías de nodos (respeta los rangos, no excedas):
@@ -134,12 +126,12 @@ Genera JSON con estas categorías de nodos (respeta los rangos, no excedas):
 
 REGLAS:
 - Español. Títulos máx 6 palabras. Descripciones 12-25 palabras.
-- Slugs válidos: ${ANCLORA_APPS.map((a) => a.slug).join(", ")}.
+- Slugs válidos: ${allSlugs.join(", ")}.
 - Summary: 30-50 palabras.
 - SIN markdown, SOLO JSON.
 
 CATÁLOGO:
-${appCatalog}
+${catalogText}
 
 SALIDA JSON:
 {"summary":"...","appSlugs":["slug"],"nodes":[{"category":"idea","title":"...","description":"..."},{"category":"objective","title":"...","description":"...","bullets":["..."]},{"category":"priority","title":"...","description":"...","priority":"alta"},{"category":"step","title":"...","description":"...","time":"2 sem","owner":"Backend"},{"category":"next","title":"...","description":"..."},{"category":"risk","title":"...","description":"...","bullets":["m1","m2"]},{"category":"tool","title":"Anclora Nexus","description":"...","appSlug":"nexus"},{"category":"cost","title":"...","description":"...","cost":4500},{"category":"kpi","title":"...","description":"...","target":"85","current":"42","unit":"%"},{"category":"stakeholder","title":"...","description":"...","role":"Owner","contact":"x@anclora.es"},{"category":"timeline","title":"...","description":"...","date":"Q1 2026","milestone":true}]}`;
@@ -158,14 +150,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine relevant apps to enrich the prompt (limit to 6 to keep prompt small)
-    const relevantApps = findRelevantApps(idea);
-    const appsForPrompt =
-      relevantApps.length > 0
-        ? [...new Set([...relevantApps, ...ANCLORA_APPS.slice(0, 3)])].slice(0, 6)
-        : ANCLORA_APPS.slice(0, 6);
+    // Load the catalog from DB (with hardcoded defaults as fallback)
+    const { catalogText, apps: catalogApps } = await getCatalogForPrompt(8);
+    const allSlugs = catalogApps.map((a) => a.slug);
+    const allCatalogAppSlugs = new Set(allSlugs);
 
-    const systemPrompt = buildSystemPrompt(appsForPrompt);
+    // Determine relevant apps based on the idea (search across the DB catalog)
+    const ideaLower = idea.toLowerCase();
+    const relevantApps = catalogApps.filter((a) => {
+      const haystack = [a.name, a.slug, a.tagline, a.domain, a.description]
+        .concat(a.capabilities)
+        .concat(a.stack)
+        .join(" ")
+        .toLowerCase();
+      return (
+        ideaLower.includes(a.slug.toLowerCase()) ||
+        a.capabilities.some((c) => {
+          const firstWord = c.toLowerCase().split(/\s+/)[0];
+          return firstWord.length > 4 && ideaLower.includes(firstWord);
+        }) ||
+        a.stack.some((s) => ideaLower.includes(s.toLowerCase()))
+      );
+    });
+
+    // Build the catalog text for the prompt: relevant apps first, then the rest
+    const orderedApps: CatalogApp[] = [
+      ...relevantApps,
+      ...catalogApps.filter((a) => !relevantApps.includes(a)),
+    ].slice(0, 8);
+
+    const orderedCatalogText = orderedApps
+      .map((a) => {
+        const stack = a.stack.slice(0, 4).join(", ");
+        const caps = a.capabilities.slice(0, 3).join(", ");
+        const ctx = a.agentsMd
+          ? `\n  Contexto extra: ${a.agentsMd.slice(0, 200).replace(/\s+/g, " ")}`
+          : "";
+        return `- ${a.slug}: ${a.name} — ${a.tagline}. Capacidades: ${caps}. Stack: ${stack}.${ctx}`;
+      })
+      .join("\n");
+
+    const systemPrompt = buildSystemPrompt(orderedCatalogText, allSlugs);
 
     const zai = await ZAI.create();
     const completion = await zai.chat.completions.create({
@@ -296,7 +321,7 @@ export async function POST(req: NextRequest) {
     // Connections
     const connections = autoConnect(laidOut);
 
-    // Apps summary (deduplicated)
+    // Apps summary (deduplicated) — validate against the dynamic catalog
     const apps = Array.from(
       new Set(
         laidOut
@@ -304,7 +329,7 @@ export async function POST(req: NextRequest) {
           .map((n) => n.appSlug as string)
           .concat(parsed.appSlugs || [])
       )
-    ).filter((slug) => ANCLORA_APPS.some((a) => a.slug === slug));
+    ).filter((slug) => allCatalogAppSlugs.has(slug));
 
     const visionMap: VisionMap = {
       idea,

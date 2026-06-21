@@ -111,3 +111,45 @@ Stage Summary:
 - JSON parsing robusto: maneja markdown fences, JSON truncado, y respuestas con texto extra.
 - Cliente maneja gracefulmente errores 502/504 del gateway con mensajes claros en español.
 - 29 nodos en 11 categorías generados consistentemente en cada run.
+
+---
+Task ID: v6
+Agent: Super Z (main)
+Task: Lanzar Fase 1 + Fase 2: importador de .txt de repos GitHub, importador por URL de GitHub, catálogo editable y DB.
+
+Work Log:
+- Añadí modelo AncloraAppRecord a prisma/schema.prisma con campos: slug (unique), name, family, tagline, description, stackJson, capabilitiesJson, accent, domain, source (manual|txt-import|github-import|default), githubUrl, readme, agentsMd, timestamps.
+- Ejecuté `bun run db:push` + `bunx prisma generate` para sincronizar DB y regenerar cliente Prisma.
+- Creé src/lib/anclora-catalog.ts (~370 líneas):
+  * getCatalogApps(): lee DB, fusiona con defaults hardcoded (los 10 apps de anclora-ecosystem.ts) para que el catálogo nunca esté vacío.
+  * getCatalogForPrompt(maxApps): genera texto compacto del catálogo para el system prompt del LLM, incluyendo contexto de AGENTS.md cuando esté disponible.
+  * parseRepoTxt(filename, content): parser heurístico robusto que extrae slug (del filename, filtrando hashes), name (de "# Anclora <Name>"), tagline (del heading si incluye coma, ej "# Anclora Nexus, capa de inteligencia" → tagline "capa de inteligencia"), description, family (Premium|Internal|Tool|Platform), stack (de "## Stack"), capabilities (de "## Características principales" o "## Incluye" o "## Contenidos" o "## Features"), accent (de "## Branding canónico"), AGENTS.md/MEMORY.md context.
+  * importFromGithub(url): parsea la URL, hace fetch de raw README.md + AGENTS.md + MEMORY.md desde main o master, reutiliza parseRepoTxt.
+  * upsertCatalogApp/deleteCatalogApp/updateCatalogAppFields: helpers de DB.
+- Creé 4 endpoints:
+  * GET/POST /api/vision/catalog (listar + actualizar campos)
+  * DELETE /api/vision/catalog/[id]
+  * POST /api/vision/catalog/import-txt (acepta múltiples archivos, lee raw body, trunca a 50KB desde el heading "# Anclora" para evitar OOM)
+  * POST /api/vision/catalog/import-github (acepta url o urls[])
+- Actualicé /api/vision/generate para leer el catálogo desde DB (getCatalogForPrompt) en lugar del array hardcoded. Las apps relevantes se detectan dinámicamente y se ponen primero en el prompt.
+- Creé src/components/vision/CatalogDialog.tsx (~450 líneas): dialog modal con header, barra de importación (2 columnas: .txt upload + GitHub URL input), search bar, grid de 2 columnas de app cards con source badge (default/manual/.txt/github), edición inline completa (name, tagline, family, accent, description, stack, capabilities, githubUrl), botones editar/eliminar, footer con conteo defaults vs personalizadas.
+- Añadí botón Database en la barra de herramientas del VisionBoard (siempre visible, no requiere mapa generado).
+- Configuré experimental.serverActions.bodySizeLimit = "20mb" en next.config.ts para permitir uploads grandes.
+- Bug fix: el parser initial perdía el heading "# Anclora" cuando el .txt empezaba con un directory tree de 114KB (caso real de anclora-nexus.txt de 6.2MB). Solución: el endpoint busca el heading con regex y extrae solo 50KB desde ahí.
+- Bug fix: el slug se extraía incorrectamente del filename "toniiapro73-anclora-nexus-8a5edab282632443.txt" → "nexus-8a5edab282632443". Solución: filtrar segmentos hexadecimales de 8+ chars.
+- Bug fix: el parser capturaba "Nexus, capa de inteligencia" como nombre. Solución: split por coma/em-dash para separar name y tagline.
+- Bug fix: el cliente Prisma no se había regenerado tras el cambio de schema → reinicié el dev server.
+
+Verificación:
+- API GET /api/vision/catalog devuelve 10 apps (defaults) correctamente.
+- API POST /api/vision/catalog/import-txt con anclora-nexus.txt (200KB slice) → 1 app importada con slug "nexus", name "Anclora Nexus", tagline "capa de inteligencia", source "txt-import".
+- API POST /api/vision/catalog/import-github con https://github.com/ToniIAPro73/anclora-nexus → 1 app importada en 1s, source "github-import", githubUrl guardado.
+- UI: botón Database abre dialog, muestra 10 apps, barra de importación .txt + GitHub, search, edición inline, eliminación.
+- La app importada desde GitHub reemplaza el default "nexus" en el catálogo y se usa al generar nuevos mapas.
+- Lint sin errores.
+
+Stage Summary:
+- Fase 1 completada: importador .txt + catálogo editable + DB.
+- Fase 2 completada: importador URL GitHub + parser de AGENTS.md/MEMORY.md.
+- El catálogo es ahora dinámico: las apps importadas/editadas se usan automáticamente al generar nuevos mapas visuales.
+- 4 endpoints API nuevos, 1 lib nueva (~370 líneas), 1 componente nuevo (~450 líneas).

@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  experimental: {
+    // Allow large request bodies for .txt repo imports
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
+  },
 };
 
 export default nextConfig;

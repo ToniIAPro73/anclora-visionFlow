@@ -112,6 +112,25 @@
 
 ---
 
+## TASK-1006 — DONE
+
+- Requisitos: REQ-AI-002, REQ-AI-007, DES-AI-003
+- Archivos:
+  - src/lib/llm-client.ts — añadida constante exportada `PROMPT_VERSION = "v1.0.0"`
+  - src/lib/vision-map.ts — añadidos campos opcionales `promptVersion?`, `llmModel?`, `tokensUsed?` a `VisionMap`
+  - prisma/schema.prisma — añadidos `promptVersion String?`, `llmModel String?`, `tokensUsed Int?` a `VisionMapRecord`
+  - prisma/migrations/20260621062333_add_generation_metadata/ — migración versionada (inicial baseline + nuevos campos)
+  - src/app/api/vision/generate/route.ts — captura `completion.usage?.total_tokens`, incluye metadatos en respuesta; GET devuelve `promptVersion` y `llmModel`
+  - src/app/api/vision/maps/route.ts — persiste `promptVersion`, `llmModel`, `tokensUsed` al guardar; incluye en GET list
+  - src/app/api/vision/maps/[id]/route.ts — incluye metadatos en respuesta GET
+  - src/lib/generation-metadata.test.ts — 11 casos de test
+- Interpretación: Los metadatos viajan en el objeto VisionMap desde generate y se persisten cuando el usuario guarda el mapa en `/api/vision/maps`. Registros históricos sin datos de trazabilidad quedan con null (sin atribuir versiones inexistentes).
+- `tokensUsed`: usa `completion.usage?.total_tokens ?? null`. Nunca estimado.
+- Compatibilidad histórica: campos nullable en schema — registros existentes quedan con null.
+- Verificación: lint PASS, typecheck PASS, test 40/40 PASS, build PASS, prisma validate PASS.
+
+---
+
 ## TASK-1008 — DONE
 
 - Requisitos: REQ-QA-001, REQ-QA-002, DES-DEC-009

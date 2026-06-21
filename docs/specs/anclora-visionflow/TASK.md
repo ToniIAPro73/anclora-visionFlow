@@ -36,6 +36,7 @@
 **Descripción:** El bloque `@transform_port_query` en `Caddyfile` permite SSRF y port pivoting sin autenticación. Debe eliminarse antes de cualquier despliegue.
 
 **Criterios de aceptación:**
+
 - [ ] Bloque `@transform_port_query` y su `handle` eliminados del `Caddyfile`
 - [ ] Solo queda el `handle` que proxea a `localhost:3000`
 - [ ] Añadidos headers de seguridad (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, -Server)
@@ -51,6 +52,7 @@
 **Descripción:** `typescript.ignoreBuildErrors: true` en `next.config.ts` permite builds con errores de tipo. Debe corregirse.
 
 **Criterios de aceptación:**
+
 - [ ] Ejecutar `npx tsc --noEmit` y corregir todos los errores reportados
 - [ ] Establecer `typescript.ignoreBuildErrors: false` en `next.config.ts`
 - [ ] `bun run build` pasa sin errores TS
@@ -65,6 +67,7 @@
 **Descripción:** `z-ai-web-dev-sdk 0.0.18` es opaco, no OSS verificable y no self-hostable. Viola REQ-OSS-001. Las herramientas y librerías open source siempre tienen prioridad.
 
 **Sub-tareas:**
+
 - [ ] **TASK-0003a:** Identificar qué proveedor LLM usa `z-ai-web-dev-sdk` (leer código fuente del paquete en `node_modules/`)
 - [ ] **TASK-0003b:** Evaluar opciones OSS: `@anthropic-ai/sdk`, `openai` npm, `ai` (Vercel AI SDK)
 - [ ] **TASK-0003c [DEC-OSS-001 DECISIÓN HUMANA]:** Seleccionar SDK OSS y documentar en Bóveda
@@ -83,6 +86,7 @@
 **Descripción:** Los campos `readme` y `agentsMd` de `AncloraAppRecord` se incluyen en el system prompt del LLM sin sanitización. Esto permite prompt injection desde contenido importado.
 
 **Criterios de aceptación:**
+
 - [ ] Implementar función `sanitizeCatalogContent(raw: string): string` en `src/lib/` (ver DES-AI-004)
 - [ ] Aplicar `sanitizeCatalogContent` sobre `readme` y `agentsMd` antes de incluirlos en cualquier prompt en `getCatalogForPrompt()`
 - [ ] La función elimina: delimitadores de sistema, instrucciones de override, patrones de jailbreak conocidos
@@ -99,6 +103,7 @@
 **Descripción:** Ninguna ruta API está protegida. `next-auth 4.24.11` está instalado pero no configurado.
 
 **Sub-tareas:**
+
 - [ ] **TASK-0005a [DEC-AUTH-001 DECISIÓN HUMANA]:** Definir provider next-auth (credentials local vs OAuth vs SSO Anclora)
 - [ ] **TASK-0005b:** Crear `src/app/api/auth/[...nextauth]/route.ts` con `authOptions`
 - [ ] **TASK-0005c:** Crear `src/middleware.ts` con `withAuth` matcher sobre `/api/vision/**`
@@ -118,6 +123,7 @@
 **Descripción:** Las rutas API no validan el body con Zod. Zod está instalado (`^4.0.2`) pero no se usa en las rutas verificadas.
 
 **Criterios de aceptación:**
+
 - [ ] `POST /api/vision/generate`: schema `GenerateSchema = z.object({ idea: z.string().min(3).max(2000) })`
 - [ ] `POST /api/vision/maps`: schema con campos requeridos del mapa
 - [ ] `PUT /api/vision/maps/[id]`: schema de actualización parcial
@@ -134,6 +140,7 @@
 **Descripción:** Verificar que no hay claves de API hardcodeadas en el repositorio.
 
 **Criterios de aceptación:**
+
 - [ ] Ejecutar `git grep -rE "(sk-|api_key|apiKey|API_KEY|secret)" -- ":(exclude)*.env*"` y verificar cero hits de secretos reales
 - [ ] Verificar que `.gitignore` incluye `.env`, `.env.local`, `.env*.local`
 - [ ] Verificar que `DATABASE_URL` no tiene valor hardcodeado en ningún archivo commiteado
@@ -147,6 +154,7 @@
 **Refs:** REQ-SEC-009, DES-SEC-004
 
 **Criterios de aceptación:**
+
 - [ ] Añadir `headers()` a `next.config.ts` con: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy
 - [ ] Build sigue pasando tras el cambio
 
@@ -165,6 +173,7 @@
 **Refs:** REQ-AUTH-002, REQ-AUTH-003, REQ-CAT-005, REQ-CAT-006, DES-DATA-002 | **Gate:** GATE-DB-001
 
 **Sub-tareas:**
+
 - [ ] **TASK-1001a:** Crear modelo `Workspace` y `WorkspaceMember` en `prisma/schema.prisma`
 - [ ] **TASK-1001b:** Añadir `workspaceId`, `ownerId`, `status`, `approvedAt`, `approvedById`, `promptVersion`, `llmModel`, `tokensUsed` a `VisionMapRecord`
 - [ ] **TASK-1001c:** Añadir `workspaceId`, `reviewedBy`, `reviewedAt`, `status`, `commitSha` a `AncloraAppRecord`
@@ -181,6 +190,7 @@
 **Refs:** REQ-AUTH-003, DES-SEC-002
 
 **Criterios de aceptación:**
+
 - [ ] Helper `getWorkspaceRole(session, workspaceId): "viewer" | "editor" | "admin" | null`
 - [ ] Todas las rutas de catálogo (`POST`, `PUT`, `DELETE`) verifican rol `admin`
 - [ ] Rutas de generación y guardado de mapas verifican rol `editor+`
@@ -194,6 +204,7 @@
 **Refs:** REQ-PROP-001, REQ-PROP-002, DES-FLOW-001
 
 **Sub-tareas:**
+
 - [ ] `POST /api/vision/maps/[id]/submit` — editor → cambia estado draft → review
 - [ ] `POST /api/vision/maps/[id]/approve` — admin → cambia estado review → approved
 - [ ] `POST /api/vision/maps/[id]/reject` — admin → devuelve a draft con comentario
@@ -209,6 +220,7 @@
 **Refs:** REQ-PROP-004, REQ-ECOSYSTEM-001, REQ-ECOSYSTEM-002, DES-NEXUS-001, DES-NEXUS-002 | **Gate:** GATE-NEXUS-001
 
 **Sub-tareas:**
+
 - [ ] **TASK-1004a [DEC-NEXUS-001 DECISIÓN HUMANA]:** Validar contrato API Nexus desde Bóveda
 - [ ] **TASK-1004b:** Implementar `src/lib/nexus-handoff.ts` con `createNexusDraftTask()` y `submitNexusTask()`
 - [ ] **TASK-1004c:** `POST /api/vision/maps/[id]/handoff/nexus` — genera borrador (sin llamar Nexus API)
@@ -226,6 +238,7 @@
 **Refs:** REQ-AUTH-004, DES-DEVOPS-002
 
 **Criterios de aceptación:**
+
 - [ ] Campo `llmPolicy` (JSON) en modelo `Workspace`: `{ provider, model, maxTokensPerMonth, allowedDataTypes }`
 - [ ] La ruta `generate` lee la política del workspace antes de llamar al LLM
 - [ ] Si se supera `maxTokensPerMonth`, retorna 429 con mensaje claro
@@ -238,6 +251,7 @@
 **Refs:** REQ-AI-002, REQ-AI-007, DES-AI-003
 
 **Criterios de aceptación:**
+
 - [ ] `PROMPT_VERSION` exportado como constante semver desde `route.ts` o módulo dedicado
 - [ ] Cada respuesta de generación exitosa persiste `promptVersion`, `llmModel`, `tokensUsed` en `VisionMapRecord`
 - [ ] `GET /api/vision/generate` retorna la versión del prompt actual
@@ -249,6 +263,7 @@
 **Refs:** REQ-AI-005, REQ-SEC-005
 
 **Criterios de aceptación:**
+
 - [ ] Implementar rate limiting OSS (ej. `@upstash/ratelimit` con Redis in-memory o `lru-cache`) por `userId`
 - [ ] Límite configurable: N peticiones por ventana de tiempo
 - [ ] Retorna 429 con header `Retry-After` cuando se supera el límite
@@ -261,6 +276,7 @@
 **Refs:** REQ-QA-001, REQ-QA-002, DES-DEC-009
 
 **Criterios de aceptación:**
+
 - [ ] Instalar `vitest`, `@testing-library/react`, `@testing-library/user-event`, `@vitejs/plugin-react`
 - [ ] Añadir script `"test": "vitest run"` y `"test:watch": "vitest"` en `package.json`
 - [ ] Configurar `vitest.config.ts`
@@ -275,6 +291,7 @@
 **Refs:** REQ-QA-003, DES-DEVOPS-001
 
 **Criterios de aceptación:**
+
 - [ ] `.github/workflows/ci.yml`: lint → typecheck → test → build
 - [ ] El pipeline falla si lint, TS o tests fallan
 - [ ] El pipeline pasa en cada PR a `main`
@@ -287,6 +304,7 @@
 **Refs:** REQ-UX-001, DES-UX-004
 
 **Criterios de aceptación:**
+
 - [ ] Todos los botones icon-only tienen `aria-label`
 - [ ] Contraste ≥ 4.5:1 para texto sobre paletas dark (verificar con palette `anclora`, `nexus`, `premium`)
 - [ ] Animaciones de Framer Motion respetan `prefers-reduced-motion`
@@ -300,6 +318,7 @@
 **Refs:** REQ-QA-005
 
 **Criterios de aceptación:**
+
 - [ ] `GET /api/health` retorna JSON: `{ status: "ok", db: "ok"|"error", llm: "ok"|"degraded", version: "...", buildAt: "..." }`
 - [ ] Caddy puede usarlo como health check antes de servir tráfico
 
@@ -310,6 +329,7 @@
 **Refs:** REQ-UX-002
 
 **Criterios de aceptación:**
+
 - [ ] `next-intl 4.3.4` configurado con locales `es` y `en`
 - [ ] Todos los strings UI en archivos de mensajes (no hardcoded)
 - [ ] El system prompt del LLM sigue generando en español (`[VERIFICADO]` — ya lo hace)
@@ -329,6 +349,7 @@
 **Refs:** REQ-AI-005 (extensión), DES-DEC-007
 
 **Sub-tareas:**
+
 - [ ] **TASK-2001a [DEC-DB-001 DECISIÓN HUMANA]:** Decidir si migrar a PostgreSQL + pgvector o usar SQLite con `better-sqlite3-fts5`
 - [ ] **TASK-2001b:** Si PostgreSQL: migrar datos de SQLite a PostgreSQL
 - [ ] **TASK-2001c:** Generar embeddings para `AncloraAppRecord` (description, capabilities, agentsMd sanitizado)
@@ -342,6 +363,7 @@
 **Refs:** REQ-AI-005 (extensión)
 
 **Criterios de aceptación:**
+
 - [ ] Para ideas largas o catálogos grandes, la generación pasa a job async
 - [ ] UI muestra estado del job con polling o SSE (OSS: no Pusher/Ably sin gate)
 - [ ] Job timeout configurable, cancelable por el usuario
@@ -353,6 +375,7 @@
 **Refs:** REQ-SYNCXML-001, REQ-SYNCXML-002, REQ-SYNCXML-003, REQ-SYNCXML-004, DES-SYNC-001 | **Gate:** DEC-SYNC-001
 
 **Sub-tareas:**
+
 - [ ] **TASK-2003a [DEC-SYNC-001 DECISIÓN HUMANA]:** Validar esquema XML con equipo SyncXML
 - [ ] **TASK-2003b:** Implementar `src/lib/syncxml-export.ts` que genera XML válido desde `VisionMapRecord`
 - [ ] **TASK-2003c:** Validar XML contra XSD antes de mostrar preview
@@ -366,6 +389,7 @@
 **Refs:** REQ-MAP-009
 
 **Criterios de aceptación:**
+
 - [ ] Modelo `VisionMapVersion` con: mapId, versionNumber, snapshot (JSON), createdAt, createdBy
 - [ ] Cada actualización de mapa crea una versión (máx 5 versiones por mapa)
 - [ ] UI: timeline de versiones con opción de restaurar (con confirmación)
@@ -383,6 +407,7 @@
 **Refs:** REQ-PROP-002 (extensión)
 
 **Criterios de aceptación:**
+
 - [ ] Modelo `ProposalComment`: mapId, userId, body, createdAt, resolvedAt
 - [ ] UI: panel de comentarios en la vista de propuesta
 - [ ] Solo miembros del workspace pueden comentar
@@ -393,6 +418,7 @@
 **Fase:** 3 | **Prioridad:** MEDIA | **Duración estimada:** 2h | **Estado:** TODO
 
 **Criterios de aceptación:**
+
 - [ ] Notificación in-app cuando una propuesta cambia de estado
 - [ ] Email opcional (OSS: Nodemailer con SMTP propio, no SaaS sin gate)
 
@@ -403,6 +429,7 @@
 **Refs:** REQ-MAP-010 (extensión), DES-DEC-001 (extensión)
 
 **Sub-tareas:**
+
 - [ ] **[DEC-COLLAB-001 DECISIÓN HUMANA]:** CRDT (Yjs OSS) vs optimistic locking simple
 - [ ] Indicadores de presencia de otros usuarios en el canvas
 - [ ] Resolución de conflictos de edición simultánea
@@ -428,6 +455,7 @@
 **Fase:** V | **Prioridad:** CRÍTICA
 
 **Checklist:**
+
 - [ ] `GATE-CADDY-001`: Caddyfile sin XTransformPort
 - [ ] `GATE-TS-001`: Build TS limpio
 - [ ] `GATE-SEC-001`: Escaneo de secretos limpio
@@ -443,6 +471,7 @@
 **Fase:** V | **Prioridad:** ALTA
 
 **Checklist:**
+
 - [ ] `src/lib/`: cobertura ≥ 80%
 - [ ] Rutas API críticas (`generate`, `maps`, `catalog`): tests de integración
 - [ ] Funciones de sanitización: cobertura 100%
@@ -454,6 +483,7 @@
 **Fase:** V | **Prioridad:** ALTA
 
 **Checklist:**
+
 - [ ] Ejecutar `axe-core` (OSS) o `playwright` con axe plugin sobre las vistas principales
 - [ ] Cero errores de nivel AA en VisionBoard, CatalogDialog y flujo de propuesta
 - [ ] Informe firmado por `frontend-qa` antes de release
@@ -464,6 +494,7 @@
 **Fase:** V | **Prioridad:** ALTA
 
 **Checklist:**
+
 - [ ] Handoff Nexus: test en staging con payload real (no producción)
 - [ ] Exportación SyncXML: XML válido contra XSD
 - [ ] Verificar que ningún test toca datos de producción

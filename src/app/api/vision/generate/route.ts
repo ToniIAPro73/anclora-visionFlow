@@ -5,6 +5,7 @@ import { repairTruncatedJson } from "@/lib/llm-utils";
 import { createGenerationReceipt } from "@/lib/generation-receipt";
 import {
   checkGenerationRateLimit,
+  getGenerationRateLimitConfig,
   getGenerationRateLimitKey,
 } from "@/lib/generation-rate-limit";
 import {
@@ -88,7 +89,11 @@ SALIDA JSON:
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
-    const rateLimit = checkGenerationRateLimit(getGenerationRateLimitKey(req));
+    const rateLimitConfig = getGenerationRateLimitConfig();
+    const rateLimit = checkGenerationRateLimit(
+      getGenerationRateLimitKey(req, rateLimitConfig),
+      rateLimitConfig
+    );
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {

@@ -20,6 +20,7 @@ export interface GenerationRateLimitConfig {
   limit: number;
   windowMs: number;
   maxKeys: number;
+  trustProxyHeaders: boolean;
 }
 
 export interface GenerationRateLimitResult {
@@ -55,11 +56,15 @@ export function getGenerationRateLimitConfig(
       MIN_MAX_KEYS,
       MAX_MAX_KEYS
     ),
+    trustProxyHeaders: env.VISIONFLOW_TRUST_PROXY_HEADERS === "true",
   };
 }
 
-export function getGenerationRateLimitKey(req: NextRequest): string {
-  return `ip:${getClientIp(req)}`;
+export function getGenerationRateLimitKey(
+  req: NextRequest,
+  config: Pick<GenerationRateLimitConfig, "trustProxyHeaders"> = getGenerationRateLimitConfig()
+): string {
+  return `ip:${getClientIp(req, config.trustProxyHeaders)}`;
 }
 
 export function checkGenerationRateLimit(
@@ -123,7 +128,11 @@ export function getGenerationRateLimitStoreSnapshot(): Array<{
   }));
 }
 
-function getClientIp(req: NextRequest): string {
+function getClientIp(req: NextRequest, trustProxyHeaders: boolean): string {
+  if (!trustProxyHeaders) {
+    return "direct";
+  }
+
   const realIp = normalizeIp(req.headers.get("x-real-ip"));
   if (realIp) {
     return realIp;

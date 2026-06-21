@@ -378,11 +378,11 @@ cp dev.db.backup-pre-task1001-<TIMESTAMP> dev.db
   - src/components/vision/VisionNodeCard.test.tsx (nuevo — 4 casos)
   - src/lib/sanitize.test.ts — 9 casos (ya existía desde TASK-0004, commit 7b977a8)
   - package.json — scripts `test` y `test:watch`
-- Verificación: 29/29 tests PASS. lint PASS. typecheck PASS. build PASS.
+- Verificación: 29/29 tests PASS al cierre de TASK-1008. Suite total al cierre de TASK-1001: 72/72 (11 archivos). lint PASS. typecheck PASS. build PASS.
 - Gates:
   - lint: `eslint .` → 0 errores
   - typecheck: `bunx tsc --noEmit` → 0 errores
-  - test: `vitest run` → 29/29
+  - test: `vitest run` → 29/29 al cierre de TASK-1008 (46/46 al cierre de TASK-1006; 72/72 al cierre de TASK-1001)
   - build: `bun run build` → compilación exitosa
 - Fixes incluidos en cierre correctivo:
   - getLlmClient() lazy (evita SDK key validation en build)

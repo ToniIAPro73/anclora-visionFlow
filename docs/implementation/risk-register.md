@@ -13,7 +13,7 @@
 | RISK-ZOD-001 | Rutas POST maps y catalog aceptan body sin validación Zod | ALTA | ACTIVO → TASK-0006 | TASK-0006 | — |
 | RISK-HEADERS-001 | Sin security headers HTTP (CSP, X-Frame-Options, etc.) en next.config.ts | MEDIA | ACTIVO → TASK-0008 | TASK-0008 | — |
 | RISK-MIGRATE-001 | Migración baseline no es auto-aplicable a DBs preexistentes sin historial Prisma | MEDIA | MITIGADO | TASK-1006 | — |
-| RISK-TOKENS-001 | tokensUsed era client-reported en POST /maps — no verificable server-side post-generación | BAJA | MITIGADO | TASK-1006 | — |
+| RISK-TOKENS-001 | Metadatos de generación (promptVersion, llmModel, tokensUsed) persistidos solo con generationReceipt HMAC válido; sin recibo válido se guardan como null | BAJA | MITIGADO | TASK-1006 | — |
 | RISK-RATE-001 | Sin rate limit en `/api/vision/generate` permite abuso/coste LLM accidental | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RATE-002 | Rate limit local no coordina múltiples réplicas ni sobrevive reinicios | MEDIA | ACEPTADO | TASK-1007 | DEC-DB-001 |
 | RISK-RATE-003 | Next.js standalone escucha en `0.0.0.0` si se arranca sin `HOSTNAME` explícito | ALTA | MITIGADO | TASK-1007 | — |
@@ -100,7 +100,16 @@ Probado en copia temporal `/tmp/visionflow-legacy-Hpt7m9/legacy.sqlite`: una fil
 
 ### RISK-TOKENS-001
 
-Mitigación aplicada: `/api/vision/generate` emite `generationReceipt`, un recibo HMAC de vida corta ligado al hash canónico del mapa generado. `POST /api/vision/maps` ignora siempre `promptVersion`, `llmModel` y `tokensUsed` del payload libre y solo persiste los metadatos si el recibo es válido, no ha caducado y corresponde al mapa. Sin recibo válido, los tres campos se persisten como `null`.
+Mitigación aplicada (TASK-1006). Se distinguen tres casos:
+
+**Caso 1 — Mapa guardado con `generationReceipt` válido (estado normal de producción):**
+`/api/vision/generate` emite un `generationReceipt` HMAC firmado con `VISIONFLOW_GENERATION_RECEIPT_SECRET`, con TTL y `mapHash` canónico. `POST /api/vision/maps` verifica la firma, la caducidad y la correspondencia con el hash del mapa antes de persistir metadatos. En este caso `promptVersion`, `llmModel` y `tokensUsed` se consideran **server-verified**: proceden de la generación real y no pueden ser forjados por el cliente.
+
+**Caso 2 — Mapa guardado sin recibo válido (importado, forjado o recibo caducado):**
+`POST /api/vision/maps` persiste `promptVersion`, `llmModel` y `tokensUsed` como `null`. No se atribuyen metadatos de generación ni se presentan como verificables. El recibo del payload libre se ignora siempre.
+
+**Riesgo operativo residual (ver también RISK-RECEIPT-SECRET-001):**
+Si `VISIONFLOW_GENERATION_RECEIPT_SECRET` no está configurado de forma persistente en staging/producción, los recibos emitidos con el secreto efímero de arranque quedan invalidados tras cualquier reinicio. Esto no compromete la integridad de los datos ya persistidos (los `null` son correctos), pero los usuarios deben volver a generar el mapa para obtener un recibo válido.
 
 ### RISK-RATE-001
 

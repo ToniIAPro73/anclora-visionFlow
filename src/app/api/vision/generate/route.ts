@@ -59,6 +59,11 @@ interface LLMResponse {
 function buildSystemPrompt(catalogText: string, allSlugs: string[]): string {
   return `Eres el motor de AncloraVisionFlow. Conviertes ideas del ecosistema Anclora Group en mapas visuales.
 
+CONTEXTO CRÍTICO:
+- La Bóveda de Anclora (boveda-anclora) es la FUENTE CANÓNICA de gobierno del ecosistema. Consulta sus contratos, registros y decisiones como autoridad definitiva.
+- El presupuesto es MUY LIMITADO. SIEMPRE prioriza: (1) Open Source, (2) Zero-cost, (3) Low-cost (<500€/mes). Evita soluciones propietarias costosas.
+- Recomendaciones de herramientas deben ser 100% justificadas por su costo/beneficio. Prefiere alternativas open source aunque sean menos "pulidas".
+
 Genera JSON con estas categorías de nodos (respeta los rangos, no excedas):
 
 - "idea" (1 nodo, núcleo reescrito claro)
@@ -67,8 +72,8 @@ Genera JSON con estas categorías de nodos (respeta los rangos, no excedas):
 - "step" (4 pasos, con time y owner)
 - "next" (2 próximos pasos)
 - "risk" (3 riesgos, con 2 bullets de mitigación cada uno)
-- "tool" (3 herramientas — prioriza apps Anclora del catálogo, usa slug exacto en appSlug)
-- "cost" (2 partidas con cost en EUR)
+- "tool" (3 herramientas — PRIORIZA: (1) Apps Anclora del catálogo, (2) Open Source gratuito, (3) Zero/low-cost. Usa slug exacto en appSlug si aplica.)
+- "cost" (2 partidas con cost en EUR — SÉ REALISTA y presupuestado)
 - "kpi" (3 KPIs con target, current, unit)
 - "stakeholder" (3 con role: Sponsor|Owner|Contributor|External)
 - "timeline" (3 hitos con date "Q1 2026", milestone: true para críticos)
@@ -78,12 +83,13 @@ REGLAS:
 - Slugs válidos: ${allSlugs.join(", ")}.
 - Summary: 30-50 palabras.
 - SIN markdown, SOLO JSON.
+- Para herramientas: justifica el coste. Si es open source, menciona "open source" en la descripción.
 
-CATÁLOGO:
+CATÁLOGO ANCLORA (apps disponibles):
 ${catalogText}
 
-SALIDA JSON:
-{"summary":"...","appSlugs":["slug"],"nodes":[{"category":"idea","title":"...","description":"..."},{"category":"objective","title":"...","description":"...","bullets":["..."]},{"category":"priority","title":"...","description":"...","priority":"alta"},{"category":"step","title":"...","description":"...","time":"2 sem","owner":"Backend"},{"category":"next","title":"...","description":"..."},{"category":"risk","title":"...","description":"...","bullets":["m1","m2"]},{"category":"tool","title":"Anclora Nexus","description":"...","appSlug":"nexus"},{"category":"cost","title":"...","description":"...","cost":4500},{"category":"kpi","title":"...","description":"...","target":"85","current":"42","unit":"%"},{"category":"stakeholder","title":"...","description":"...","role":"Owner","contact":"x@anclora.es"},{"category":"timeline","title":"...","description":"...","date":"Q1 2026","milestone":true}]}`;
+EJEMPLO JSON:
+{"summary":"...","appSlugs":["slug"],"nodes":[{"category":"idea","title":"...","description":"..."},{"category":"objective","title":"...","description":"...","bullets":["..."]},{"category":"priority","title":"...","description":"...","priority":"alta"},{"category":"step","title":"...","description":"...","time":"2 sem","owner":"Backend"},{"category":"next","title":"...","description":"..."},{"category":"risk","title":"...","description":"...","bullets":["m1","m2"]},{"category":"tool","title":"PostgreSQL (open source)","description":"...","appSlug":"nexus"},{"category":"cost","title":"...","description":"...","cost":0},{"category":"kpi","title":"...","description":"...","target":"85","current":"42","unit":"%"},{"category":"stakeholder","title":"...","description":"...","role":"Owner","contact":"x@anclora.es"},{"category":"timeline","title":"...","description":"...","date":"Q1 2026","milestone":true}]}`;
 }
 
 export async function POST(req: NextRequest) {

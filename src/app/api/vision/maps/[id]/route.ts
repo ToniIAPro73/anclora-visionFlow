@@ -25,9 +25,15 @@ export async function GET(
   try {
     const { id } = await params;
     const workspaceId = resolveServerWorkspaceId();
-    const r = await db.visionMapRecord.findFirst({ where: { id } });
-    if (!r || r.workspaceId !== workspaceId) {
+    const r = await db.visionMapRecord.findFirst({
+      where: { id },
+    });
+    if (!r) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+    }
+    // Workspace isolation check
+    if (r.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
     }
     const map: VisionMap = {
       idea: r.idea,
@@ -78,10 +84,13 @@ export async function PATCH(
     }
     const existing = await db.visionMapRecord.findFirst({
       where: { id },
-      select: { id: true, workspaceId: true },
+      select: { workspaceId: true },
     });
-    if (!existing || existing.workspaceId !== workspaceId) {
+    if (!existing) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+    }
+    if (existing.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
     }
     const updated = await db.visionMapRecord.update({
       where: { id },

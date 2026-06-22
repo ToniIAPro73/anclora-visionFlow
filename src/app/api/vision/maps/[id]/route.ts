@@ -26,16 +26,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const workspaceId = resolveServerWorkspaceId();
+    const requiredWorkspaceId = resolveServerWorkspaceId();
     const r = await db.visionMapRecord.findFirst({
-      where: { id },
+      where: { id, workspaceId: requiredWorkspaceId },
     });
     if (!r) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
-    }
-    // Workspace isolation check
-    if (r.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
     }
     const map: VisionMap = {
       idea: r.idea,
@@ -85,14 +81,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
     }
     const existing = await db.visionMapRecord.findFirst({
-      where: { id },
-      select: { workspaceId: true },
+      where: { id, workspaceId },
+      select: { id: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
-    }
-    if (existing.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
     }
     const updated = await db.visionMapRecord.update({
       where: { id },
@@ -113,15 +106,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     const workspaceId = resolveServerWorkspaceId();
-    const existing = await db.visionMapRecord.findFirst({
-      where: { id },
-      select: { workspaceId: true },
-    });
-    if (!existing || existing.workspaceId !== workspaceId) {
-      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
-    }
     const result = await db.visionMapRecord.deleteMany({
-      where: { id },
+      where: { id, workspaceId },
     });
     if (result.count === 0) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });

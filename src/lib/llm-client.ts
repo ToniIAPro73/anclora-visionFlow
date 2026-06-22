@@ -12,9 +12,15 @@ export const llmModel = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 
 // Factory (not singleton) — avoids SDK key validation at module load time during Next.js build.
 export function getLlmClient(): OpenAI {
+  const apiKey = process.env.OPENROUTER_API_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY || "";
+
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY not configured in environment variables");
+  }
+
   return new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY ?? "",
+    apiKey,
     defaultHeaders: {
       "HTTP-Referer": "https://anclora.com",
       "X-Title": "AncloraVisionFlow",

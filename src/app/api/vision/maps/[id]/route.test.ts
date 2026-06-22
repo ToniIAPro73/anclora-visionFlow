@@ -75,7 +75,6 @@ describe("/api/vision/maps/[id] workspace governance", () => {
     expect(res.status).toBe(200);
     expect(dbMocks.findFirstMock).toHaveBeenCalledWith({
       where: { id: "map_1", workspaceId: "workspace_anclora_internal" },
-      select: { id: true },
     });
     expect(dbMocks.updateMock.mock.calls[0][0].data).toEqual({
       title: "Nuevo titulo",

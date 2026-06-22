@@ -26,12 +26,18 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    resolveServerWorkspaceId(); // Ensures user is in valid workspace context
-    const r = await db.visionMapRecord.findUnique({
-      where: { id },
+    const requiredWorkspaceId = resolveServerWorkspaceId();
+    const r = await db.visionMapRecord.findFirst({
+      where: {
+        id,
+        workspaceId: requiredWorkspaceId,
+      },
     });
     if (!r) {
-      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Mapa no encontrado" },
+        { status: 404 }
+      );
     }
     const map: VisionMap = {
       idea: r.idea,
@@ -67,7 +73,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    resolveServerWorkspaceId(); // Ensures user is in valid workspace context
+    const workspaceId = resolveServerWorkspaceId();
     const body = await req.json().catch(() => ({}));
     const parseResult = UpdateMapSchema.safeParse(body);
     if (!parseResult.success) {
@@ -80,8 +86,11 @@ export async function PATCH(
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
     }
-    const existing = await db.visionMapRecord.findUnique({
-      where: { id },
+    const existing = await db.visionMapRecord.findFirst({
+      where: {
+        id,
+        workspaceId,
+      },
     });
     if (!existing) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
@@ -104,15 +113,12 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    resolveServerWorkspaceId(); // Ensures user is in valid workspace context
-    const existing = await db.visionMapRecord.findUnique({
-      where: { id },
-    });
-    if (!existing) {
-      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
-    }
+    const workspaceId = resolveServerWorkspaceId();
     const result = await db.visionMapRecord.deleteMany({
-      where: { id },
+      where: {
+        id,
+        workspaceId,
+      },
     });
     if (result.count === 0) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });

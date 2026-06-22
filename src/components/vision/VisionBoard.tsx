@@ -88,6 +88,9 @@ import {
   type VisionNode,
 } from "@/lib/vision-map";
 import { useSavedMaps } from "@/hooks/use-saved-maps";
+import { useMapExports } from "@/hooks/use-map-exports";
+import { ExportHistory } from "./ExportHistory";
+import { Cloud } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
   Lightbulb,
@@ -137,8 +140,11 @@ export function VisionBoard() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [saveTags, setSaveTags] = useState("");
+  const [exportsDialogOpen, setExportsDialogOpen] = useState(false);
+  const [uploadingExportFormat, setUploadingExportFormat] = useState<"png" | "pdf" | null>(null);
 
   const savedMaps = useSavedMaps();
+  const mapExports = useMapExports();
 
   const boardRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number; nodeX: number; nodeY: number } | null>(null);
@@ -691,6 +697,101 @@ export function VisionBoard() {
     }
   }, [map]);
 
+  // Export to cloud
+  const uploadMapExportToCloud = useCallback(
+    async (format: "png" | "pdf") => {
+      if (!map || !savedId) {
+        toast.error("Guarda el mapa primero");
+        return;
+      }
+
+      setUploadingExportFormat(format);
+      toast.info(`Subiendo ${format.toUpperCase()} a la nube...`);
+
+      try {
+        let canvas: HTMLCanvasElement;
+        if (format === "png") {
+          const { buildVisionSVG } = await import("./export-utils");
+          const svgString = buildVisionSVG(map);
+          const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("No se pudo renderizar el SVG"));
+            img.src = url;
+          });
+          const scale = 1.4;
+          canvas = document.createElement("canvas");
+          canvas.width = CANVAS_W * scale;
+          canvas.height = CANVAS_H * scale;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("Canvas no disponible");
+          ctx.fillStyle = "#0a0f1f";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+        } else {
+          const { buildVisionSVG } = await import("./export-utils");
+          const svgString = buildVisionSVG(map);
+          const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("No se pudo renderizar el SVG"));
+            img.src = url;
+          });
+          const scale = 2;
+          canvas = document.createElement("canvas");
+          canvas.width = CANVAS_W * scale;
+          canvas.height = CANVAS_H * scale;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("Canvas no disponible");
+          ctx.fillStyle = "#0a0f1f";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+        }
+
+        // Convert canvas to blob and upload
+        canvas.toBlob(async (canvasBlob) => {
+          if (!canvasBlob) {
+            toast.error("No se pudo crear el archivo");
+            return;
+          }
+
+          const file = new File([canvasBlob], `map-${savedId}.${format}`, {
+            type: format === "pdf" ? "application/pdf" : "image/png",
+          });
+
+          const exported = await mapExports.uploadExport(savedId, file, format);
+          if (exported) {
+            toast.success(`${format.toUpperCase()} subido a la nube 🎉`);
+            setExportsDialogOpen(true);
+          } else {
+            toast.error(mapExports.error || "Error al subir");
+          }
+        }, format === "pdf" ? "application/pdf" : "image/png");
+      } catch (err) {
+        toast.error("Error al procesar el archivo");
+        console.error(err);
+      } finally {
+        setUploadingExportFormat(null);
+      }
+    },
+    [map, savedId, mapExports]
+  );
+
+  // Load exports when map is loaded
+  useEffect(() => {
+    if (savedId) {
+      mapExports.listExports(savedId);
+    }
+  }, [savedId]);
+
   // Presentation mode auto-cycle
   const [presoSlide, setPresoSlide] = useState(0);
   useEffect(() => {
@@ -952,31 +1053,59 @@ export function VisionBoard() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={exportImage}
-                        className="h-9 w-9"
-                      >
-                        <ImageIcon size={15} />
-                      </Button>
-                    </motion.div>
+                    <DropdownMenu>
+                      <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                        <Button asChild variant="outline" size="icon" className="h-9 w-9">
+                          <DropdownMenuTrigger>
+                            <ImageIcon size={15} />
+                          </DropdownMenuTrigger>
+                        </Button>
+                      </motion.div>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Exportar imagen</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={exportImage}>
+                          <Download size={14} className="mr-2" />
+                          Descargar local
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => uploadMapExportToCloud("png")}
+                          disabled={!savedId || uploadingExportFormat === "png"}
+                        >
+                          <Cloud size={14} className="mr-2" />
+                          Subir a nube
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TooltipTrigger>
                   <TooltipContent>Exportar imagen</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={exportPDF}
-                        className="h-9 w-9"
-                      >
-                        <FileDown size={15} />
-                      </Button>
-                    </motion.div>
+                    <DropdownMenu>
+                      <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                        <Button asChild variant="outline" size="icon" className="h-9 w-9">
+                          <DropdownMenuTrigger>
+                            <FileDown size={15} />
+                          </DropdownMenuTrigger>
+                        </Button>
+                      </motion.div>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Exportar PDF</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={exportPDF}>
+                          <Download size={14} className="mr-2" />
+                          Descargar local
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => uploadMapExportToCloud("pdf")}
+                          disabled={!savedId || uploadingExportFormat === "pdf"}
+                        >
+                          <Cloud size={14} className="mr-2" />
+                          Subir a nube
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TooltipTrigger>
                   <TooltipContent>Exportar PDF</TooltipContent>
                 </Tooltip>
@@ -1009,6 +1138,22 @@ export function VisionBoard() {
                     </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Exportar JSON</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setExportsDialogOpen(true)}
+                        className="h-9 w-9"
+                        disabled={!savedId || mapExports.exports.length === 0}
+                      >
+                        <Cloud size={15} />
+                      </Button>
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver archivos en nube</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1493,6 +1638,38 @@ export function VisionBoard() {
               {savedId ? "Actualizar" : "Guardar"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exports dialog — manage cloud uploads */}
+      <Dialog open={exportsDialogOpen} onOpenChange={setExportsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Cloud size={16} /> Archivos guardados en nube
+            </DialogTitle>
+          </DialogHeader>
+          {mapExports.error && (
+            <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+              {mapExports.error}
+            </div>
+          )}
+          <ExportHistory
+            exports={mapExports.exports}
+            mapId={savedId || ""}
+            onDownload={(exportId) => {
+              if (savedId) {
+                mapExports.downloadExport(savedId, exportId);
+              }
+            }}
+            onDelete={async (exportId) => {
+              if (savedId) {
+                await mapExports.deleteExport(savedId, exportId);
+                toast.success("Archivo eliminado");
+              }
+            }}
+            isLoading={mapExports.loading}
+          />
         </DialogContent>
       </Dialog>
 

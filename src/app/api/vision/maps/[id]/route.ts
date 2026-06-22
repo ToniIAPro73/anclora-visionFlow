@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { resolveServerWorkspaceId } from "@/lib/workspace-context";
 import type { VisionMap } from "@/lib/vision-map";
 
 const UpdateMapSchema = z.object({
@@ -23,7 +24,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const r = await db.visionMapRecord.findUnique({ where: { id } });
+    const workspaceId = resolveServerWorkspaceId();
+    const r = await db.visionMapRecord.findFirst({ where: { id, workspaceId } });
     if (!r) {
       return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
     }
@@ -61,6 +63,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const workspaceId = resolveServerWorkspaceId();
     const body = await req.json().catch(() => ({}));
     const parseResult = UpdateMapSchema.safeParse(body);
     if (!parseResult.success) {
@@ -72,6 +75,13 @@ export async function PATCH(
     const data = parseResult.data;
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "Nada que actualizar." }, { status: 400 });
+    }
+    const existing = await db.visionMapRecord.findFirst({
+      where: { id, workspaceId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
     }
     const updated = await db.visionMapRecord.update({
       where: { id },
@@ -91,7 +101,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await db.visionMapRecord.delete({ where: { id } });
+    const workspaceId = resolveServerWorkspaceId();
+    const result = await db.visionMapRecord.deleteMany({
+      where: { id, workspaceId },
+    });
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Mapa no encontrado" }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("delete map error:", err);

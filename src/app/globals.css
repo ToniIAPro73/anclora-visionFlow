@@ -134,12 +134,21 @@
 /* ============ AncloraVisionFlow custom styles ============ */
 
 .vision-board-bg {
+  background-color: var(--background);
   background-image:
-    radial-gradient(circle at 20% 20%, rgba(29, 171, 137, 0.06) 0%, transparent 35%),
-    radial-gradient(circle at 80% 30%, rgba(212, 175, 55, 0.06) 0%, transparent 40%),
-    radial-gradient(circle at 50% 80%, rgba(108, 72, 197, 0.07) 0%, transparent 45%),
-    linear-gradient(180deg, oklch(0.13 0.02 250) 0%, oklch(0.1 0.015 250) 100%);
+    radial-gradient(ellipse at 15% 25%, rgba(29, 171, 137, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, rgba(212, 175, 55, 0.09) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 85%, rgba(108, 72, 197, 0.11) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 70%, rgba(29, 171, 137, 0.05) 0%, transparent 40%);
   background-attachment: fixed;
+}
+
+.dark .vision-board-bg {
+  background-image:
+    radial-gradient(ellipse at 15% 25%, rgba(29, 171, 137, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 20%, rgba(212, 175, 55, 0.07) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 85%, rgba(108, 72, 197, 0.09) 0%, transparent 50%),
+    linear-gradient(180deg, oklch(0.13 0.02 250) 0%, oklch(0.10 0.015 250) 100%);
 }
 
 .vision-board-grid {
@@ -158,12 +167,14 @@
 
 .node-card {
   position: absolute;
-  transition: box-shadow 200ms ease, transform 200ms ease;
+  transition: box-shadow 200ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 220ms ease;
   will-change: transform;
 }
 
-.node-card:hover {
+.node-card:not(.dragging):hover {
   z-index: 30;
+  transform: translateY(-6px) scale(1.018);
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.28));
 }
 
 .node-card.dragging {
@@ -222,6 +233,13 @@
 }
 
 .node-idea .node-card-inner {
+  background: linear-gradient(135deg, color-mix(in oklab, #ec4899 22%, oklch(0.98 0.005 240)), color-mix(in oklab, #6C48C5 22%, oklch(0.98 0.005 240)));
+  border: 1px solid color-mix(in oklab, #ec4899 40%, transparent);
+  border-left: 3px solid #ec4899;
+  box-shadow: 0 0 40px -10px rgba(236, 72, 153, 0.35);
+}
+
+.dark .node-idea .node-card-inner {
   background: linear-gradient(135deg, color-mix(in oklab, #ec4899 22%, oklch(0.17 0.025 250)), color-mix(in oklab, #6C48C5 22%, oklch(0.17 0.025 250)));
   border: 1px solid color-mix(in oklab, #ec4899 40%, transparent);
   border-left: 3px solid #ec4899;

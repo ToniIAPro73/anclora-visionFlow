@@ -1448,6 +1448,12 @@ export function VisionBoard() {
               <Input
                 value={saveTitle}
                 onChange={(e) => setSaveTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmSave();
+                  }
+                }}
                 placeholder="Título del mapa"
                 maxLength={120}
               />
@@ -1459,6 +1465,12 @@ export function VisionBoard() {
               <Input
                 value={saveTags}
                 onChange={(e) => setSaveTags(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmSave();
+                  }
+                }}
                 placeholder="estrategia, q1-2026, premium"
               />
             </div>
@@ -1737,7 +1749,7 @@ function EmptyState({
 }) {
   const visibleCats = CATEGORY_ORDER.filter((c) => c !== "idea");
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden relative">
+    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden">
       {/* Premium hero background with elegant gradients and geometric elements */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
         {/* Base gradient */}

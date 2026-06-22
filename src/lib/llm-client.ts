@@ -8,7 +8,7 @@ export const PROMPT_VERSION = "v1.0.0";
 // Recommended cheap+capable models: google/gemini-flash-1.5, mistralai/mistral-7b-instruct
 const DEFAULT_MODEL = "google/gemini-flash-1.5";
 
-export const llmModel = process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL;
+export const llmModel = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 
 // Factory (not singleton) — avoids SDK key validation at module load time during Next.js build.
 export function getLlmClient(): OpenAI {

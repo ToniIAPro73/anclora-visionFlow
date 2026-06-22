@@ -8,6 +8,7 @@
 | DEC-DB-001 | SQLite vs PostgreSQL para Fase 2 (RAG/embeddings) | Staff Architect | ⏳ PENDIENTE | TASK-2001 |
 | DEC-NEXUS-001 | Contrato API Nexus (endpoint, auth, payload) | Product + Nexus Owner | ⏳ PENDIENTE | TASK-1004 |
 | DEC-SYNC-001 | Esquema XML SyncXML y protocolo | SyncXML Owner | ⏳ PENDIENTE | TASK-2003 |
+| GATE-DB-001 | Implementación TASK-1001 aprobada con condiciones: workspace canónico `anclora-internal`, migración segura, sin auth/UI/externos | Staff Architect + DBA | ✅ APROBADO | TASK-1001 |
 
 ## Impacto en implementación actual
 - DEC-OSS-001: TASK-0003 no iniciada. El endpoint /api/vision/generate sigue usando z-ai-web-dev-sdk (`ZAI.create()` en línea 195 de generate/route.ts).
@@ -19,3 +20,14 @@
 
 ## Contexto para DEC-AUTH-001
 next-auth 4.24.11 está declarado en package.json pero NO hay ningún archivo `[...nextauth]` wired, ni middleware de sesión, ni ninguna llamada a `getServerSession` en las rutas existentes. La decisión de provider bloquea el wiring completo.
+
+## Contexto para GATE-DB-001
+
+TASK-1001 queda autorizado solo como fundación de datos/gobernanza. Condiciones aplicadas:
+
+- Workspace canónico `anclora-internal` sin aceptar `workspaceId` desde cliente.
+- No se inventan usuarios, memberships, owners, approvers ni reviewers para histórico.
+- `VisionMapRecord` y `AncloraAppRecord` quedan scoped por `workspaceId NOT NULL`.
+- `AncloraAppRecord.reviewedById` es relación a `User` con `onDelete: SetNull`.
+- No se modifica `REQUIREMENTS.md` ni `DESIGN.md`.
+- No se toca Nexus, SyncXML, auth completa, UI de miembros ni handoffs externos.

@@ -16,6 +16,39 @@ model User {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  memberships         WorkspaceMember[]
+  ownedMaps           VisionMapRecord[]  @relation("MapOwner")
+  approvedMaps        VisionMapRecord[]  @relation("MapApprover")
+  reviewedCatalogApps AncloraAppRecord[] @relation("CatalogReviewer")
+}
+
+model Workspace {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     WorkspaceMember[]
+  visionMaps  VisionMapRecord[]
+  catalogApps AncloraAppRecord[]
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String   @default("viewer")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId, role])
 }
 
 model VisionMapRecord {
@@ -29,6 +62,11 @@ model VisionMapRecord {
   palette     String   @default("anclora") // anclora | nexus | premium
   tags        String   @default("") // comma-separated tags
   starred     Boolean  @default(false)
+  workspaceId String
+  ownerId     String?
+  status      String   @default("draft")
+  approvedAt  DateTime?
+  approvedById String?
   // AI generation traceability (REQ-AI-007, DES-AI-003)
   promptVersion String?
   llmModel     String?
@@ -36,13 +74,22 @@ model VisionMapRecord {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  owner      User?     @relation("MapOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  approvedBy User?     @relation("MapApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
   @@index([starred])
   @@index([createdAt])
+  @@index([workspaceId, updatedAt])
+  @@index([workspaceId, status])
+  @@index([workspaceId, starred])
+  @@index([ownerId])
+  @@index([approvedById])
 }
 
 model AncloraAppRecord {
   id            String   @id @default(cuid())
-  slug          String   @unique
+  slug          String
   name          String
   family        String   @default("Tool") // Premium | Internal | Tool | Platform
   tagline       String   @default("")
@@ -55,9 +102,22 @@ model AncloraAppRecord {
   githubUrl     String?
   readme        String   @default("") // raw README content
   agentsMd      String   @default("") // raw AGENTS.md / MEMORY.md context
+  workspaceId   String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  status        String   @default("active")
+  commitSha     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  reviewedBy User?     @relation("CatalogReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, slug])
   @@index([family])
   @@index([source])
+  @@index([workspaceId, family])
+  @@index([workspaceId, source])
+  @@index([workspaceId, status])
+  @@index([reviewedById])
 }

@@ -8,16 +8,18 @@
 | RISK-AUTH-001 | Sin auth en ninguna ruta API (maps, catalog, generate) | CRÍTICA | BLOQUEADO | TASK-0005 | GATE-AUTH-001/DEC-AUTH-001 |
 | RISK-SDK-001 | z-ai-web-dev-sdk propietario y opaco (sin repositorio OSS verificable) | ALTA | BLOQUEADO | TASK-0003 | GATE-OSS-001/DEC-OSS-001 |
 | RISK-INJ-001 | agentsMd/readme incluidos en prompts LLM sin sanitizar (slice no es sanitización) | CRÍTICA | ACTIVO → TASK-0004 | TASK-0004 | — |
-| RISK-SCHEMA-001 | VisionMapRecord sin userId/workspaceId — datos no aislados por usuario | ALTA | FASE 1 | TASK-1001 | GATE-DB-001 |
+| RISK-SCHEMA-001 | VisionMapRecord sin userId/workspaceId — datos no aislados por workspace | ALTA | MITIGADO PARCIAL | TASK-1001 | GATE-DB-001 |
 | RISK-NEXUS-001 | Sin contrato Nexus firmado | ALTA | BLOQUEADO | TASK-1004 | GATE-NEXUS-001/DEC-NEXUS-001 |
 | RISK-ZOD-001 | Rutas POST maps y catalog aceptan body sin validación Zod | ALTA | ACTIVO → TASK-0006 | TASK-0006 | — |
 | RISK-HEADERS-001 | Sin security headers HTTP (CSP, X-Frame-Options, etc.) en next.config.ts | MEDIA | ACTIVO → TASK-0008 | TASK-0008 | — |
 | RISK-MIGRATE-001 | Migración baseline no es auto-aplicable a DBs preexistentes sin historial Prisma | MEDIA | MITIGADO | TASK-1006 | — |
-| RISK-TOKENS-001 | tokensUsed era client-reported en POST /maps — no verificable server-side post-generación | BAJA | MITIGADO | TASK-1006 | — |
+| RISK-TOKENS-001 | Metadatos de generación (promptVersion, llmModel, tokensUsed) persistidos solo con generationReceipt HMAC válido; sin recibo válido se guardan como null | BAJA | MITIGADO | TASK-1006 | — |
 | RISK-RATE-001 | Sin rate limit en `/api/vision/generate` permite abuso/coste LLM accidental | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RATE-002 | Rate limit local no coordina múltiples réplicas ni sobrevive reinicios | MEDIA | ACEPTADO | TASK-1007 | DEC-DB-001 |
 | RISK-RATE-003 | Next.js standalone escucha en `0.0.0.0` si se arranca sin `HOSTNAME` explícito | ALTA | MITIGADO | TASK-1007 | — |
 | RISK-RECEIPT-SECRET-001 | `VISIONFLOW_GENERATION_RECEIPT_SECRET` efímero invalida recibos tras restart | BAJA | OPERATIVO | TASK-1006 | — |
+| RISK-WORKSPACE-001 | Modo compatibilidad usa un único workspace canónico hasta auth/workspace selector | MEDIA | ACEPTADO | TASK-1001 | GATE-DB-001 |
+| RISK-WORKSPACE-002 | Migración TASK-1001 reconstruye tablas SQLite; requiere backup y validación real antes de producción | ALTA | MITIGADO | TASK-1001 | GATE-DB-001 |
 
 ## Notas de evidencia
 
@@ -98,7 +100,16 @@ Probado en copia temporal `/tmp/visionflow-legacy-Hpt7m9/legacy.sqlite`: una fil
 
 ### RISK-TOKENS-001
 
-Mitigación aplicada: `/api/vision/generate` emite `generationReceipt`, un recibo HMAC de vida corta ligado al hash canónico del mapa generado. `POST /api/vision/maps` ignora siempre `promptVersion`, `llmModel` y `tokensUsed` del payload libre y solo persiste los metadatos si el recibo es válido, no ha caducado y corresponde al mapa. Sin recibo válido, los tres campos se persisten como `null`.
+Mitigación aplicada (TASK-1006). Se distinguen tres casos:
+
+**Caso 1 — Mapa guardado con `generationReceipt` válido (estado normal de producción):**
+`/api/vision/generate` emite un `generationReceipt` HMAC firmado con `VISIONFLOW_GENERATION_RECEIPT_SECRET`, con TTL y `mapHash` canónico. `POST /api/vision/maps` verifica la firma, la caducidad y la correspondencia con el hash del mapa antes de persistir metadatos. En este caso `promptVersion`, `llmModel` y `tokensUsed` se consideran **server-verified**: proceden de la generación real y no pueden ser forjados por el cliente.
+
+**Caso 2 — Mapa guardado sin recibo válido (importado, forjado o recibo caducado):**
+`POST /api/vision/maps` persiste `promptVersion`, `llmModel` y `tokensUsed` como `null`. No se atribuyen metadatos de generación ni se presentan como verificables. El recibo del payload libre se ignora siempre.
+
+**Riesgo operativo residual (ver también RISK-RECEIPT-SECRET-001):**
+Si `VISIONFLOW_GENERATION_RECEIPT_SECRET` no está configurado de forma persistente en staging/producción, los recibos emitidos con el secreto efímero de arranque quedan invalidados tras cualquier reinicio. Esto no compromete la integridad de los datos ya persistidos (los `null` son correctos), pero los usuarios deben volver a generar el mapa para obtener un recibo válido.
 
 ### RISK-RATE-001
 
@@ -143,3 +154,30 @@ desarrollo local.
 ### RISK-ZOD-001
 
 `maps/route.ts` línea 41: body destructuring sin schema. `catalog/route.ts` línea 23: `fields` tipado como `Record<string, unknown>` pasado directamente a `updateCatalogAppFields`.
+
+### RISK-SCHEMA-001
+
+Mitigación TASK-1001: `VisionMapRecord` y `AncloraAppRecord` tienen `workspaceId` obligatorio y FK
+`onDelete: Restrict` hacia `Workspace`. Todas las rutas actuales resuelven
+`workspace_anclora_internal` en servidor y no aceptan workspace desde cliente.
+
+Residual: todavía no hay auth ni selector de workspace; por tanto no se debe presentar como
+multitenancy real. TASK-1002/auth debe introducir identidad verificable, membresías efectivas y
+autorización por rol.
+
+### RISK-WORKSPACE-001
+
+Aceptado por GATE-DB-001: single-workspace compatibility mode hasta que se aprueben auth, selector y
+RBAC efectivo. Los payloads con `workspaceId`, `status`, `approvedById`, `approvedAt` o `reviewedById`
+se ignoran en rutas actuales.
+
+### RISK-WORKSPACE-002
+
+Mitigación: migración versionada `20260621120000_add_workspace_governance` probada en base nueva con
+`migrate deploy` y en copia legacy temporal con filas no triviales. Evidencia SQLite:
+
+- `VisionMapRecord.workspaceId`: `TEXT notnull=1`.
+- `AncloraAppRecord.workspaceId`: `TEXT notnull=1`.
+- `PRAGMA foreign_key_check`: sin filas.
+- Conteos legacy: `1|1->1|1`.
+- Metadata TASK-1006 preservada: `promptVersion`, `llmModel`, `tokensUsed`.

@@ -25,7 +25,8 @@
 
 | ID | Feature | Spec | Estado |
 |---|---|---|---|
-| AVF-GOV-001 | Workspace + WorkspaceMember + RBAC | TASK-1001, TASK-1002 | TODO |
+| AVF-GOV-001 | Workspace + WorkspaceMember foundation | TASK-1001 | DONE |
+| AVF-GOV-001B | RBAC efectivo y autorización por membresía | TASK-1002 | TODO |
 | AVF-GOV-002 | Ciclo de vida de propuesta (estados + transiciones) | TASK-1003 | TODO |
 | AVF-GOV-003 | Handoff a Anclora Nexus con confirmación humana | TASK-1004 | BLOCKED (DEC-NEXUS-001) |
 | AVF-GOV-004 | Política LLM por workspace | TASK-1005 | TODO |

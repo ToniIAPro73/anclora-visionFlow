@@ -9,7 +9,9 @@ export function proxy(req: NextRequest): NextResponse {
 
   const expectedKey = process.env.VISIONFLOW_API_KEY;
   if (!expectedKey) {
-    // No key configured — deny all requests to avoid open access in production
+    if (process.env.NODE_ENV !== "production") {
+      return NextResponse.next();
+    }
     return NextResponse.json(
       { code: "SERVICE_UNAVAILABLE", message: "API key not configured." },
       { status: 503 }

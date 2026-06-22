@@ -26,6 +26,7 @@ import {
   Lightbulb,
   Maximize2,
   Minus,
+  Moon,
   Palette,
   Plus,
   Rocket,
@@ -34,6 +35,7 @@ import {
   Search,
   Sparkles,
   Star,
+  Sun,
   Target,
   Trash2,
   TrendingUp,
@@ -148,6 +150,21 @@ export function VisionBoard() {
   const [libPaletteFilter, setLibPaletteFilter] = useState<PaletteId | "all">("all");
   const [libStarredOnly, setLibStarredOnly] = useState(false);
   const [libTagFilter, setLibTagFilter] = useState<string>("all");
+
+  // Theme toggle
+  const [isDark, setIsDark] = useState(true);
+  useEffect(() => {
+    const stored = localStorage.getItem("vf-theme");
+    const dark = stored !== "light";
+    setIsDark(dark);
+    document.documentElement.classList.toggle("dark", dark);
+  }, []);
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("vf-theme", next ? "dark" : "light");
+  };
 
   // Drag node
   const handleNodeDragStart = useCallback((id: string, e: React.MouseEvent) => {
@@ -707,7 +724,7 @@ export function VisionBoard() {
   }, [map]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen overflow-hidden flex flex-col bg-background">
       {/* Top bar */}
       <header className="sticky top-0 z-50 glass-strong border-b border-border/50">
         <div className="px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4 flex-wrap">
@@ -781,6 +798,24 @@ export function VisionBoard() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Catálogo Anclora · Importar .txt / GitHub</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Theme toggle — always visible */}
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="h-9 w-9 bg-background/60"
+                  aria-label={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+                >
+                  {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isDark ? "Tema claro" : "Tema oscuro"}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 

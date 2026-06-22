@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { resolveServerWorkspaceId } from "@/lib/workspace-context";
 import type { VisionMap } from "@/lib/vision-map";
 
+// Vision map management endpoints with workspace isolation
+
 const UpdateMapSchema = z.object({
   title: z.string().min(1).max(200).trim().optional(),
   summary: z.string().max(1000).optional(),

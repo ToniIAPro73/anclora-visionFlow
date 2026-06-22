@@ -124,11 +124,12 @@ export function parseRepoTxt(filename: string, content: string): ParsedApp | nul
   //    → slug "nexus"
   const slugFromName = extractSlugFromFilename(filename);
 
-  // 2. Find the canonical app name from "# Anclora <Name>" heading.
+  // 2. Find the canonical app name from "# Anclora <Name>" or "# Boveda <Name>" heading.
   //    The heading may include a tagline after a comma:
   //      "# Anclora Nexus, capa de inteligencia"
+  //      "# Boveda Anclora" (private vault case)
   //    → name "Nexus", tagline "capa de inteligencia"
-  const nameMatch = text.match(/^#\s+Anclora\s+(.+?)$/m);
+  const nameMatch = text.match(/^#\s+(?:Anclora|Boveda)\s+(.+?)$/m);
   if (!nameMatch) return null;
   const headingRest = nameMatch[1].trim();
   let appName = headingRest;
@@ -222,8 +223,11 @@ function slugify(s: string): string {
 }
 
 function extractTagline(text: string, appName: string): string {
-  // First paragraph after "# Anclora <appName>"
-  const headingIdx = text.indexOf(`# Anclora ${appName}`);
+  // First paragraph after "# Anclora <appName>" or "# Boveda <appName>"
+  let headingIdx = text.indexOf(`# Anclora ${appName}`);
+  if (headingIdx === -1) {
+    headingIdx = text.indexOf(`# Boveda ${appName}`);
+  }
   if (headingIdx === -1) return "";
   const after = text.slice(headingIdx + appName.length + 12);
   // Skip the heading line itself
@@ -243,7 +247,10 @@ function extractTagline(text: string, appName: string): string {
 
 function extractDescription(text: string, appName: string, tagline: string): string {
   // Collect up to 2 paragraphs after the tagline
-  const headingIdx = text.indexOf(`# Anclora ${appName}`);
+  let headingIdx = text.indexOf(`# Anclora ${appName}`);
+  if (headingIdx === -1) {
+    headingIdx = text.indexOf(`# Boveda ${appName}`);
+  }
   if (headingIdx === -1) return tagline;
   const after = text.slice(headingIdx);
   const lines = after.split(/\r?\n/);
@@ -395,8 +402,8 @@ function extractAgentsContext(text: string): string {
 }
 
 function extractReadme(text: string): string {
-  // Extract from "# Anclora" onwards
-  const idx = text.search(/^#\s+Anclora\s/m);
+  // Extract from "# Anclora" or "# Boveda" onwards
+  const idx = text.search(/^#\s+(?:Anclora|Boveda)\s/m);
   if (idx === -1) return text.slice(0, 4000);
   return text.slice(idx, idx + 6000);
 }
@@ -506,9 +513,14 @@ async function fetchRawGithub(
 ): Promise<{ ok: boolean; text: string }> {
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file}`;
   try {
+    const headers: Record<string, string> = {
+      "User-Agent": "AncloraVisionFlow/1.0",
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
+    }
     const res = await fetch(url, {
-      headers: { "User-Agent": "AncloraVisionFlow/1.0" },
-      // 10s timeout
+      headers,
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return { ok: false, text: "" };

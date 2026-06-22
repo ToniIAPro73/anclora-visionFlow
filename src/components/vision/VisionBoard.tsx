@@ -770,7 +770,7 @@ export function VisionBoard() {
                   }
                 }}
                 placeholder="Describe tu idea, proyecto o problema del ecosistema Anclora..."
-                className="pl-9 pr-3 h-10 bg-background/60"
+                className="pl-9 pr-3 h-10 "
                 disabled={loading}
               />
             </div>
@@ -797,15 +797,17 @@ export function VisionBoard() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCatalogOpen(true)}
-                  className="h-9 w-9 bg-background/60"
-                  title="Catálogo del ecosistema Anclora"
-                >
-                  <Database size={15} />
-                </Button>
+                <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCatalogOpen(true)}
+                    className="h-9 w-9"
+                    title="Catálogo del ecosistema Anclora"
+                  >
+                    <Database size={15} />
+                  </Button>
+                </motion.div>
               </TooltipTrigger>
               <TooltipContent>Catálogo Anclora · Importar .txt / GitHub</TooltipContent>
             </Tooltip>
@@ -815,15 +817,17 @@ export function VisionBoard() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className="h-9 w-9 bg-background/60"
-                  aria-label={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
-                >
-                  {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                </Button>
+                <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleTheme}
+                    className="h-9 w-9"
+                    aria-label={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+                  >
+                    {isDark ? <Sun size={15} /> : <Moon size={15} />}
+                  </Button>
+                </motion.div>
               </TooltipTrigger>
               <TooltipContent>{isDark ? "Tema claro" : "Tema oscuro"}</TooltipContent>
             </Tooltip>
@@ -834,17 +838,22 @@ export function VisionBoard() {
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={openSaveDialog}
-                      className="h-9 w-9 bg-background/60 relative"
+                    <motion.div
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.95 }}
                     >
-                      <Save size={15} />
-                      {isDirty && (
-                        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
-                      )}
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={openSaveDialog}
+                        className="h-9 w-9 relative"
+                      >
+                        <Save size={15} />
+                        {isDirty && (
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                        )}
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>
                     {savedId ? "Guardar cambios" : "Guardar mapa"}
@@ -852,30 +861,34 @@ export function VisionBoard() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        savedMaps.refresh();
-                        setLibraryOpen(true);
-                      }}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <FolderOpen size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          savedMaps.refresh();
+                          setLibraryOpen(true);
+                        }}
+                        className="h-9 w-9"
+                      >
+                        <FolderOpen size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Mapas guardados</TooltipContent>
                 </Tooltip>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-9 w-9 bg-background/60"
-                      title="Paleta de color"
-                    >
-                      <Palette size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9"
+                        title="Paleta de color"
+                      >
+                        <Palette size={15} />
+                      </Button>
+                    </motion.div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Paleta de color</DropdownMenuLabel>
@@ -909,92 +922,106 @@ export function VisionBoard() {
                 </DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={relayout}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <LayoutGrid size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={relayout}
+                        className="h-9 w-9"
+                      >
+                        <LayoutGrid size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Reordenar (R)</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setPresentationMode(true)}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <Maximize2 size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPresentationMode(true)}
+                        className="h-9 w-9"
+                      >
+                        <Maximize2 size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Modo presentación (P)</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={exportImage}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <ImageIcon size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={exportImage}
+                        className="h-9 w-9"
+                      >
+                        <ImageIcon size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Exportar imagen</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={exportPDF}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <FileDown size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={exportPDF}
+                        className="h-9 w-9"
+                      >
+                        <FileDown size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Exportar PDF</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={exportSpecMD}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <FileText size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={exportSpecMD}
+                        className="h-9 w-9"
+                      >
+                        <FileText size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Exportar Spec Markdown (para agente IA)</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={exportJSON}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <Download size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={exportJSON}
+                        className="h-9 w-9"
+                      >
+                        <Download size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Exportar JSON</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="h-9 w-9 bg-background/60"
-                    >
-                      <Upload size={15} />
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-9 w-9"
+                      >
+                        <Upload size={15} />
+                      </Button>
+                    </motion.div>
                   </TooltipTrigger>
                   <TooltipContent>Importar JSON</TooltipContent>
                 </Tooltip>

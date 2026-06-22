@@ -728,13 +728,23 @@ export function VisionBoard() {
       {/* Top bar */}
       <header className="sticky top-0 z-50 glass-strong border-b border-border/50">
         <div className="px-4 md:px-6 py-3 flex items-center gap-3 md:gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="relative w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-[#1dab89] via-[#6C48C5] to-[#D4AF37]">
+          <button
+          onClick={() => {
+            setMap(null);
+            setIdea("");
+            setActiveNodeId(null);
+            setPan({ x: 0, y: 0 });
+            setZoom(0.55);
+          }}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer group"
+          title="Volver al inicio"
+        >
+            <div className="relative w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-[#1dab89] via-[#6C48C5] to-[#D4AF37] group-hover:scale-110 transition-transform">
               <div className="absolute inset-1 rounded-md bg-[#0a0f1f] flex items-center justify-center">
                 <Eye size={16} className="text-white" strokeWidth={2.4} />
               </div>
             </div>
-            <div className="leading-tight">
+            <div className="leading-tight text-left">
               <div className="font-bold text-base tracking-tight">
                 Anclora<span className="gradient-text">VisionFlow</span>
               </div>
@@ -742,7 +752,7 @@ export function VisionBoard() {
                 Tablero visual inteligente · Anclora Group
               </div>
             </div>
-          </div>
+          </button>
 
           <div className="flex-1 min-w-[280px] max-w-2xl flex items-center gap-2">
             <div className="relative flex-1">
@@ -1700,12 +1710,47 @@ function EmptyState({
 }) {
   const visibleCats = CATEGORY_ORDER.filter((c) => c !== "idea");
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden">
+    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-6 overflow-hidden relative">
+      {/* Premium hero background with elegant gradients and geometric elements */}
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        {/* Base gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0f1f] via-[#0f1528] to-[#1a0a2e]" />
+
+        {/* Floating geometric shapes - premium effect */}
+        <div
+          className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-3xl -mr-32 -mt-32"
+          style={{ background: "radial-gradient(circle, rgba(29, 171, 137, 0.25) 0%, rgba(29, 171, 137, 0.08) 40%, transparent 70%)" }}
+        />
+        <div
+          className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-3xl -ml-40 -mb-40"
+          style={{ background: "radial-gradient(circle, rgba(108, 72, 197, 0.2) 0%, rgba(108, 72, 197, 0.05) 50%, transparent 75%)" }}
+        />
+        <div
+          className="absolute top-1/3 right-1/4 w-[400px] h-[400px] rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.03) 60%, transparent 80%)" }}
+        />
+
+        {/* Accent lines - subtle grid effect */}
+        <svg className="absolute inset-0 w-full h-full opacity-10" preserveAspectRatio="none">
+          <defs>
+            <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+              <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#1dab89" strokeWidth="0.5" opacity="0.3" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+        </svg>
+
+        {/* Radial accent glow from center */}
+        <div className="absolute inset-0 bg-radial-gradient pointer-events-none" style={{
+          background: `radial-gradient(ellipse at 50% 50%, rgba(29, 171, 137, 0.08) 0%, transparent 70%)`
+        }} />
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-4xl flex flex-col items-center text-center"
+        className="w-full max-w-4xl flex flex-col items-center text-center relative z-10"
       >
         {/* Brand + tagline row — compact premium header */}
         <div className="flex items-center gap-3 mb-3">
@@ -1762,19 +1807,24 @@ function EmptyState({
           <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2 font-semibold text-center">
             Prueba con un ejemplo
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {EXAMPLE_IDEAS.map((ex, i) => (
-              <button
+              <motion.button
                 key={i}
                 onClick={() => onPickExample(ex)}
-                className="text-left text-xs px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/60 border border-border/50 transition flex items-start gap-2 group"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.05 * i }}
+                whileHover={{ scale: 1.02, boxShadow: "0 30px 60px -15px rgba(29, 171, 137, 0.25), 0 0 40px rgba(108, 72, 197, 0.15)" }}
+                whileTap={{ scale: 0.98 }}
+                className="text-left text-xs px-4 py-3 rounded-xl bg-gradient-to-br from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 border border-border/60 hover:border-border/80 transition-all flex items-start gap-3 group shadow-lg hover:shadow-2xl"
               >
                 <Sparkles
-                  size={12}
-                  className="mt-0.5 text-[#6C48C5] shrink-0 group-hover:scale-110 transition"
+                  size={14}
+                  className="mt-0.5 text-[#6C48C5] shrink-0 group-hover:scale-125 transition-transform"
                 />
-                <span className="text-foreground/80 line-clamp-2 leading-snug">{ex}</span>
-              </button>
+                <span className="text-foreground/85 line-clamp-2 leading-snug font-medium">{ex}</span>
+              </motion.button>
             ))}
           </div>
         </motion.div>

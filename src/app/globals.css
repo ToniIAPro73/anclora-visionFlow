@@ -233,6 +233,13 @@
 }
 
 .node-idea .node-card-inner {
+  background: linear-gradient(135deg, color-mix(in oklab, #ec4899 22%, oklch(0.98 0.005 240)), color-mix(in oklab, #6C48C5 22%, oklch(0.98 0.005 240)));
+  border: 1px solid color-mix(in oklab, #ec4899 40%, transparent);
+  border-left: 3px solid #ec4899;
+  box-shadow: 0 0 40px -10px rgba(236, 72, 153, 0.35);
+}
+
+.dark .node-idea .node-card-inner {
   background: linear-gradient(135deg, color-mix(in oklab, #ec4899 22%, oklch(0.17 0.025 250)), color-mix(in oklab, #6C48C5 22%, oklch(0.17 0.025 250)));
   border: 1px solid color-mix(in oklab, #ec4899 40%, transparent);
   border-left: 3px solid #ec4899;

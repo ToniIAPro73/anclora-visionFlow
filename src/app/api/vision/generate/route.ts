@@ -15,6 +15,7 @@ import {
 } from "@/lib/anclora-ecosystem";
 import { getCatalogForPrompt, type CatalogApp } from "@/lib/anclora-catalog";
 import { sanitizeCatalogContent } from "@/lib/sanitize";
+import { retrieveRelevant, formatChunksForPrompt } from "@/lib/rag/retriever";
 import type {
   NodeCategory,
   Priority,
@@ -175,13 +176,27 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(orderedCatalogText, allSlugs);
 
+    // RAG: retrieve semantically relevant chunks from indexed catalog/specs (non-blocking)
+    let ragContext = "";
+    try {
+      const ragQuery = idea;
+      const chunks = await retrieveRelevant(ragQuery, 5, true);
+      ragContext = formatChunksForPrompt(chunks);
+    } catch {
+      // RAG failure is non-blocking — generation proceeds without context
+    }
+
+    const userContent = ragContext
+      ? `Contexto semántico relevante (fuentes internas aprobadas):\n${ragContext}\n\n---\n\nIdea: """${idea}"""${realEstateContext}\n\nGenera el JSON del mapa visual.`
+      : `Idea: """${idea}"""${realEstateContext}\n\nGenera el JSON del mapa visual.`;
+
     const completion = await getLlmClient().chat.completions.create({
       model: llmModel,
       messages: [
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Idea: """${idea}"""${realEstateContext}\n\nGenera el JSON del mapa visual.`,
+          content: userContent,
         },
       ],
       temperature: 0.6,

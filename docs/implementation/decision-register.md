@@ -1,5 +1,5 @@
-# Decision Register — AncloraVisionFlow Fase 0
-**Fecha:** 2026-06-21 | **Última actualización:** 2026-06-23 (Fase 0 hardening)
+# Decision Register — AncloraVisionFlow
+**Fecha:** 2026-06-21 | **Última actualización:** 2026-06-23 (Fase 5 AVF-DEPTH-001)
 
 | ID | Descripción | Responsable | Estado | Bloqueante para |
 |---|---|---|---|---|
@@ -31,3 +31,28 @@ TASK-1001 queda autorizado solo como fundación de datos/gobernanza. Condiciones
 - `AncloraAppRecord.reviewedById` es relación a `User` con `onDelete: SetNull`.
 - No se modifica `REQUIREMENTS.md` ni `DESIGN.md`.
 - No se toca Nexus, SyncXML, auth completa, UI de miembros ni handoffs externos.
+
+---
+
+## Fase 5 — AVF-DEPTH-001 Decisiones Pendientes
+
+| ID | Descripción | Responsable | Estado | Bloqueante para |
+|---|---|---|---|---|
+| DEC-DEPTH-001 | Modelo de embedding de producción: pseudo-embedding determinista (dev) vs sentence-transformers local vs API externa | Staff Architect + AI Lead | ⏳ PENDIENTE | RAG en producción (AVF-DEPTH-002) |
+| DEC-DEPTH-002 | Backend realtime de producción: in-memory pub/sub (actual, dev-only) vs Redis pub/sub vs Supabase Realtime | Infrastructure + Product | ⏳ PENDIENTE | Lead status en producción (AVF-DEPTH-004) |
+| DEC-DEPTH-003 | Contrato Nexus lead-status-v1: endpoint, auth, payload schema para eventos de estado de lead entrantes desde Nexus | Product + Nexus Owner | ⏳ PENDIENTE | Integración realtime Nexus→VisionFlow |
+| DEC-DEPTH-004 | Política de retención y limpieza de CatalogEmbedding: TTL por versión, re-indexado automático vs manual, tamaño máximo de tabla | DBA + Staff Architect | ⏳ PENDIENTE | Operaciones RAG en producción |
+
+## Contexto para DEC-DEPTH-001
+
+El pseudo-embedding determinista implementado en `src/lib/rag/indexer.ts` y `retriever.ts` es funcional para desarrollo pero no produce embeddings semánticos reales. En producción se requiere un modelo de embedding real. Opciones evaluadas:
+- **sentence-transformers via Ollama** (local, zero-cost, privacidad total): requiere infraestructura local o servidor dedicado.
+- **HuggingFace Inference API** (hosted, coste por token): simplifica despliegue pero añade dependencia externa.
+- **OpenAI text-embedding-3-small** (hosted, ~$0.02/1M tokens): integración sencilla si ya se usa OpenRouter.
+
+## Contexto para DEC-DEPTH-002
+
+El canal realtime actual (`src/lib/realtime/channel.ts`) usa Map en memoria — no sobrevive reinicios de servidor ni escala horizontalmente. Para producción:
+- **Redis pub/sub** (Upstash Redis): coste mínimo, TTL configurable, escala bien.
+- **Supabase Realtime**: ya disponible si se migra a Supabase como DB principal.
+- **Server-Sent Events** con polling fallback: opción zero-infra adicional.

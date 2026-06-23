@@ -44,6 +44,7 @@ enum EvidenceKind {
   manual
   datalab_insight_card
   energyscan_reference
+  filestudio_manifest
 }
 
 enum DeliveryStatus {
@@ -93,6 +94,7 @@ model Workspace {
   visionMaps  VisionMapRecord[]
   catalogApps AncloraAppRecord[]
   cases       Case[]
+  caseMetrics CaseMetric[]
 }
 
 model WorkspaceMember {
@@ -340,4 +342,37 @@ model IntegrationDelivery {
   handoffDraft   HandoffDraft   @relation(fields: [handoffDraftId], references: [id])
 
   @@index([status])
+}
+
+/// Requires pgvector extension. Stores semantic embeddings for RAG.
+model CatalogEmbedding {
+  id            String   @id @default(cuid())
+  sourceType    String   // "boveda_contract" | "realestate_spec" | "catalog_app"
+  sourceId      String
+  sourceVersion String
+  chunk         String
+  /// 384-dimension vector (open local embedding model)
+  embedding     Unsupported("vector(384)")
+  createdAt     DateTime @default(now())
+
+  @@index([sourceType])
+  @@index([sourceId])
+}
+
+model CaseMetric {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  caseId           String   @unique
+  templateSlug     String
+  reachedApproved  Boolean  @default(false)
+  handedOff        Boolean  @default(false)
+  reworkCount      Int      @default(0)
+  evidenceCount    Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace        Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId, templateSlug])
+  @@index([workspaceId])
 }

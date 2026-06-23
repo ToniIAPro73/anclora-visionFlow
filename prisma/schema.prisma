@@ -10,6 +10,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum MemberRole {
+  viewer
+  editor
+  reviewer
+  admin
+}
+
+enum CatalogState {
+  importado
+  en_revision
+  publicado
+  retirado
+}
+
+enum AuditAction {
+  import
+  generation
+  status_change
+  export
+  handoff
+  catalog_publish
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -39,7 +62,7 @@ model WorkspaceMember {
   id          String   @id @default(cuid())
   workspaceId String
   userId      String
-  role        String   @default("viewer")
+  role        MemberRole @default(viewer)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -106,10 +129,11 @@ model AncloraAppRecord {
   workspaceId   String
   reviewedById  String?
   reviewedAt    DateTime?
-  status        String   @default("active")
+  status        String       @default("active")
+  catalogState  CatalogState @default(importado)
   commitSha     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   reviewedBy User?     @relation("CatalogReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
@@ -120,6 +144,7 @@ model AncloraAppRecord {
   @@index([workspaceId, family])
   @@index([workspaceId, source])
   @@index([workspaceId, status])
+  @@index([workspaceId, catalogState])
   @@index([reviewedById])
 }
 
@@ -138,4 +163,20 @@ model MapExport {
   @@index([mapId])
   @@index([uploadedAt])
   @@index([expiresAt])
+}
+
+model AuditEvent {
+  id           String      @id @default(cuid())
+  workspaceId  String
+  actorId      String
+  action       AuditAction
+  resourceType String
+  resourceId   String
+  reason       String?
+  metadata     Json?
+  signature    String
+  createdAt    DateTime    @default(now())
+
+  @@index([workspaceId, action])
+  @@index([resourceType, resourceId])
 }

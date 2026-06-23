@@ -2,7 +2,7 @@ export const CANONICAL_WORKSPACE_ID = "workspace_anclora_internal";
 export const CANONICAL_WORKSPACE_SLUG = "anclora-internal";
 export const CANONICAL_WORKSPACE_NAME = "Anclora Internal";
 
-export const WORKSPACE_ROLES = ["viewer", "editor", "admin"] as const;
+export const WORKSPACE_ROLES = ["viewer", "editor", "reviewer", "admin"] as const;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 
 export const VISION_MAP_STATUSES = [

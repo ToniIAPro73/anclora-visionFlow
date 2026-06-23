@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { get } from "@vercel/blob";
 import { db } from "@/lib/db";
 import { resolveServerWorkspaceId } from "@/lib/workspace-context";
 
 export const runtime = "nodejs";
+
+// Hard cap: blobs older than 24 h require re-export (expiry field added in Fase 2)
+const EXPORT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export async function GET(
   _req: NextRequest,
@@ -12,7 +16,7 @@ export async function GET(
     const { id, exportId } = await params;
     const workspaceId = resolveServerWorkspaceId();
 
-    // Verify export belongs to map and user has access to workspace
+    // Verify export belongs to map and workspace before serving
     const mapExport = await db.mapExport.findFirst({
       where: {
         id: exportId,
@@ -22,7 +26,6 @@ export async function GET(
       select: {
         blobUrl: true,
         format: true,
-        fileSize: true,
         uploadedAt: true,
       },
     });
@@ -34,30 +37,34 @@ export async function GET(
       );
     }
 
-    // Check if export has expired (optional)
-    // Future: add expiration logic here
+    const age = Date.now() - mapExport.uploadedAt.getTime();
+    if (age > EXPORT_MAX_AGE_MS) {
+      return NextResponse.json(
+        { error: "El enlace de descarga ha expirado" },
+        { status: 410 }
+      );
+    }
 
-    // Redirect to blob URL or fetch and stream
-    // For simplicity, we redirect to the Vercel Blob public URL
-    // which is more efficient than proxying through our server
-    return NextResponse.redirect(mapExport.blobUrl, {
-      status: 302,
+    // Proxy private blob server-side — BLOB_READ_WRITE_TOKEN used automatically by SDK
+    const blobResponse = await get(mapExport.blobUrl, { access: "private" });
+    if (!blobResponse || blobResponse.statusCode !== 200 || !blobResponse.stream) {
+      return NextResponse.json(
+        { error: "Blob no disponible" },
+        { status: 502 }
+      );
+    }
+
+    const mimeType =
+      mapExport.format === "pdf" ? "application/pdf" : "image/png";
+
+    return new NextResponse(blobResponse.stream, {
+      status: 200,
       headers: {
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Content-Type": mimeType,
+        "Content-Disposition": `attachment; filename="export-${exportId}.${mapExport.format}"`,
+        "Cache-Control": "private, no-store",
       },
     });
-
-    // Alternative: proxy the download with custom headers
-    // const response = await fetch(mapExport.blobUrl);
-    // const mimeType = mapExport.format === "pdf" ? "application/pdf" : "image/png";
-    // return new NextResponse(response.body, {
-    //   status: 200,
-    //   headers: {
-    //     "Content-Type": mimeType,
-    //     "Content-Disposition": `attachment; filename="map-${Date.now()}.${mapExport.format}"`,
-    //     "Cache-Control": "public, max-age=31536000",
-    //   },
-    // });
   } catch (err) {
     console.error("download export error:", err);
     return NextResponse.json(

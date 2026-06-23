@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { deleteCatalogApp, updateCatalogAppFields } from "@/lib/anclora-catalog";
+import { getSession } from "@/lib/auth";
+import { requireRole } from "@/lib/rbac";
 
 const UpdateAppSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -16,12 +18,15 @@ const UpdateAppSchema = z.object({
 
 export const runtime = "nodejs";
 
-// PATCH /api/vision/catalog/[id] — update an app's editable fields
+// PATCH /api/vision/catalog/[id] — update an app's editable fields (requires editor+)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession();
+    requireRole(session, "editor");
+
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
     const parseResult = UpdateAppSchema.safeParse(body);
@@ -38,21 +43,30 @@ export async function PATCH(
     const updated = await updateCatalogAppFields(id, fields as Record<string, unknown>);
     return NextResponse.json({ ok: true, app: updated });
   } catch (err) {
+    const statusCode = (err as { statusCode?: number }).statusCode;
+    if (statusCode === 401) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    if (statusCode === 403) return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
     console.error("catalog patch error:", err);
     return NextResponse.json({ error: "No se pudo actualizar la app." }, { status: 500 });
   }
 }
 
-// DELETE /api/vision/catalog/[id]
+// DELETE /api/vision/catalog/[id] — requires admin role
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getSession();
+    requireRole(session, "admin");
+
     const { id } = await params;
     await deleteCatalogApp(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    const statusCode = (err as { statusCode?: number }).statusCode;
+    if (statusCode === 401) return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    if (statusCode === 403) return NextResponse.json({ error: "Sin permiso." }, { status: 403 });
     console.error("catalog delete error:", err);
     return NextResponse.json({ error: "No se pudo eliminar la app." }, { status: 500 });
   }

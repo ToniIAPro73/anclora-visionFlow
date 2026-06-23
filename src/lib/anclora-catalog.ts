@@ -59,14 +59,72 @@ export async function getCatalogApps(): Promise<CatalogApp[]> {
 }
 
 /**
+ * Returns only published catalog apps (catalogState = 'publicado') from DB.
+ * Defaults (hardcoded) are excluded since they have no DB state.
+ */
+export async function getPublishedCatalogApps(): Promise<CatalogApp[]> {
+  const workspaceId = resolveServerWorkspaceId();
+  try {
+    const records = await db.ancloraAppRecord.findMany({
+      where: { workspaceId, catalogState: "publicado" },
+      orderBy: [{ name: "asc" }],
+    });
+    return records.map((r) => ({
+      slug: r.slug,
+      name: r.name,
+      family: r.family as AncloraApp["family"],
+      tagline: r.tagline,
+      description: r.description,
+      stack: safeParseArr(r.stackJson) as string[],
+      capabilities: safeParseArr(r.capabilitiesJson) as string[],
+      accent: r.accent,
+      domain: r.domain,
+      id: r.id,
+      source: r.source,
+      githubUrl: r.githubUrl,
+      readme: r.readme,
+      agentsMd: r.agentsMd,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  } catch (err) {
+    console.error("Failed to read published catalog from DB:", err);
+    return [];
+  }
+}
+
+/**
+ * Update the catalogState of a catalog app by id.
+ */
+export async function updateCatalogState(
+  id: string,
+  state: "importado" | "en_revision" | "publicado" | "retirado"
+) {
+  const workspaceId = resolveServerWorkspaceId();
+  const existing = await db.ancloraAppRecord.findFirst({
+    where: { id, workspaceId },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new Error("Catalog app not found in current workspace");
+  }
+  return db.ancloraAppRecord.update({
+    where: { id },
+    data: { catalogState: state },
+  });
+}
+
+/**
  * Returns a compact app catalog string suitable for inclusion in the LLM
- * system prompt. Includes AGENTS.md context when available.
+ * system prompt. Only includes 'publicado' DB records; falls back to all
+ * apps (DB + defaults) if no published records exist.
+ * Includes AGENTS.md context when available.
  */
 export async function getCatalogForPrompt(maxApps = 8): Promise<{
   catalogText: string;
   apps: CatalogApp[];
 }> {
-  const apps = await getCatalogApps();
+  const published = await getPublishedCatalogApps();
+  const apps = published.length > 0 ? published : await getCatalogApps();
   const selected = apps.slice(0, maxApps);
   const catalogText = selected
     .map((a) => {

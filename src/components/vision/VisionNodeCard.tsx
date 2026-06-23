@@ -39,6 +39,11 @@ const ICONS: Record<string, LucideIcon> = {
   Calendar,
 };
 
+interface LeadStatusIndicator {
+  status?: "active" | "negotiating" | "closed_won" | "closed_lost" | "stale";
+  isLive?: boolean;
+}
+
 interface Props {
   node: VisionNode;
   isActive: boolean;
@@ -48,6 +53,7 @@ interface Props {
   onUpdate: (id: string, patch: Partial<VisionNode>) => void;
   presentationMode?: boolean;
   palette?: PaletteId;
+  leadStatus?: LeadStatusIndicator;
 }
 
 function VisionNodeCardInner({
@@ -59,6 +65,7 @@ function VisionNodeCardInner({
   onUpdate,
   presentationMode = false,
   palette = "anclora",
+  leadStatus,
 }: Props) {
   const meta = getCategoryMeta(node.category, palette);
   const Icon = ICONS[meta.icon] || Target;
@@ -151,6 +158,22 @@ function VisionNodeCardInner({
           >
             <Pencil size={12} className="text-muted-foreground" />
           </button>
+        )}
+
+        {leadStatus?.status && (
+          <span
+            className={`absolute top-1 left-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium pointer-events-none ${
+              leadStatus.status === "closed_won"
+                ? "bg-green-500/20 text-green-400"
+                : leadStatus.status === "closed_lost"
+                  ? "bg-red-500/20 text-red-400"
+                  : leadStatus.status === "negotiating"
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : "bg-muted text-muted-foreground"
+            } ${leadStatus.isLive ? "ring-1 ring-primary/50" : ""}`}
+          >
+            {leadStatus.isLive ? "⬤ " : "○ "}{leadStatus.status}
+          </span>
         )}
 
         {editing ? (

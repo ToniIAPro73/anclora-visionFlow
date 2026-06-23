@@ -198,3 +198,53 @@ function readIntegerEnv(
   }
   return parsed;
 }
+
+// In-memory daily token fallback store (key → used tokens today)
+const dailyTokenStore = new Map<string, number>();
+
+/**
+ * Redis-backed sliding window rate limit for daily token usage.
+ * Falls back to in-memory if REDIS_URL is not configured.
+ */
+export async function checkDailyTokenLimit(
+  workspaceId: string,
+  tokensToUse: number
+): Promise<{ allowed: boolean; remaining: number }> {
+  const dailyLimit = readIntegerEnv(
+    process.env.DAILY_TOKEN_LIMIT,
+    100000,
+    1,
+    10_000_000
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `vf:tokens:${workspaceId}:${today}`;
+
+  if (process.env.REDIS_URL) {
+    try {
+      const { Redis } = await import("ioredis");
+      const redis = new Redis(process.env.REDIS_URL);
+      const current = parseInt((await redis.get(key)) ?? "0");
+      if (current + tokensToUse > dailyLimit) {
+        await redis.quit();
+        return { allowed: false, remaining: Math.max(0, dailyLimit - current) };
+      }
+      await redis.incrby(key, tokensToUse);
+      await redis.expire(key, 86400);
+      await redis.quit();
+      return { allowed: true, remaining: dailyLimit - current - tokensToUse };
+    } catch (err) {
+      console.error(
+        "Redis rate limit error, falling back to in-memory:",
+        err
+      );
+    }
+  }
+
+  // In-memory fallback
+  const current = dailyTokenStore.get(key) ?? 0;
+  if (current + tokensToUse > dailyLimit) {
+    return { allowed: false, remaining: Math.max(0, dailyLimit - current) };
+  }
+  dailyTokenStore.set(key, current + tokensToUse);
+  return { allowed: true, remaining: dailyLimit - current - tokensToUse };
+}

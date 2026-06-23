@@ -150,7 +150,7 @@ describe("workspace governance constants", () => {
   });
 
   it("validates only approved roles and states", () => {
-    expect(WORKSPACE_ROLES).toEqual(["viewer", "editor", "admin"]);
+    expect(WORKSPACE_ROLES).toEqual(["viewer", "editor", "reviewer", "admin"]);
     expect(VISION_MAP_STATUSES).toEqual([
       "draft",
       "review",

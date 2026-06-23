@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { InsightCardSchema, EnergyReferenceSchema } from "@/lib/schemas/activation";
-import type { EvidenceKind } from "@prisma/client";
+import { FileManifestSchema } from "@/lib/schemas/depth";
+import type { EvidenceKind, EvidenceSensitivity } from "@prisma/client";
 
 export async function attachInsightCard(
   caseId: string,
@@ -84,4 +85,54 @@ export async function attachEnergyReference(
   });
 
   return evidence;
+}
+
+export async function attachManifest(
+  caseId: string,
+  workspaceId: string,
+  actorId: string,
+  manifestData: unknown
+) {
+  const parsed = FileManifestSchema.safeParse(manifestData);
+  if (!parsed.success) {
+    throw new Error("Invalid FileStudio manifest: " + JSON.stringify(parsed.error.issues));
+  }
+
+  const manifest = parsed.data;
+
+  // Security gate: manifests that require exif stripping must have it confirmed
+  if (!manifest.exifStripped) {
+    throw new Error("Manifest rejected: exifStripped must be true (EXIF must be removed at origin)");
+  }
+
+  const ref = await db.evidenceReference.create({
+    data: {
+      caseId,
+      source: "filestudio",
+      externalRef: manifest.manifestId,
+      hash: manifest.sha256,
+      sensitivity: manifest.classification as EvidenceSensitivity,
+      kind: "filestudio_manifest" as EvidenceKind,
+      sourceVersion: manifest.sha256.slice(0, 12),
+      issuedAt: new Date(manifest.issuedAt),
+      reviewState: manifest.classification === "restricted" ? "pending" : "approved",
+    },
+  });
+
+  await recordAudit({
+    workspaceId,
+    actorId,
+    action: "import",
+    resourceType: "EvidenceReference",
+    resourceId: ref.id,
+    metadata: {
+      kind: "filestudio_manifest",
+      manifestId: manifest.manifestId,
+      classification: manifest.classification,
+      ocrAvailable: manifest.ocrAvailable,
+      hasPermittedExtract: Boolean(manifest.permittedExtract),
+    },
+  });
+
+  return ref;
 }

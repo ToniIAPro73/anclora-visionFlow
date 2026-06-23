@@ -62,6 +62,29 @@
 
 ---
 
+## FASE 4 — Activación (completada)
+
+| ID | Feature | Spec | Estado |
+|---|---|---|---|
+| AVF-ACT-001 | Evidence Pack (insight cards, energy refs) | `sdd/contracts/datalab-insight-card-v1.md`, `energyscan-reference-v1.md` | DONE |
+| AVF-ACT-002 | Handoff a Nexus con firma | `sdd/contracts/visionflow-case-handoff-v1.md` | DONE |
+| AVF-ACT-003 | Exportación SDD | — | DONE |
+| AVF-ACT-004 | Rate limiting de generación | — | DONE |
+
+---
+
+## FASE 5 — Depth RAG (AVF-DEPTH-001)
+
+| ID | Feature | Spec | Estado |
+|---|---|---|---|
+| AVF-DEPTH-001 | FileStudio manifest evidence (filestudio-manifest-v1) | `sdd/contracts/filestudio-manifest-v1.md` | DONE |
+| AVF-DEPTH-002 | RAG semántico sobre catálogo (CatalogEmbedding, pgvector) | `docs/specs/anclora-visionflow/AVF-DEPTH-001_Evidencia_RAG_Tiempo_Real_spec_v1.md` | DONE |
+| AVF-DEPTH-003 | CaseMetric — métricas de aprendizaje por plantilla | — | DONE |
+| AVF-DEPTH-004 | Realtime lead status (in-memory pub/sub) | — | DONE |
+| AVF-DEPTH-005 | Panel /insights (métricas agregadas, sin PII) | — | DONE |
+
+---
+
 ## Decisiones Pendientes de Aprobación Humana
 
 | DEC | Descripción | Bloqueante para |

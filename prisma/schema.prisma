@@ -17,6 +17,42 @@ enum MemberRole {
   admin
 }
 
+enum CaseStatus {
+  draft
+  review
+  approved
+  handed_off
+  archived
+}
+
+enum CaseType {
+  captacion_premium
+  comercializacion_activo
+  contexto_energetico
+  campana_territorial
+  propuesta_partner
+}
+
+enum EvidenceSensitivity {
+  public
+  internal
+  confidential
+  restricted
+}
+
+enum EvidenceKind {
+  manual
+  datalab_insight_card
+  energyscan_reference
+}
+
+enum DeliveryStatus {
+  pending
+  sent
+  acknowledged
+  failed
+}
+
 enum CatalogState {
   importado
   en_revision
@@ -56,6 +92,7 @@ model Workspace {
   members     WorkspaceMember[]
   visionMaps  VisionMapRecord[]
   catalogApps AncloraAppRecord[]
+  cases       Case[]
 }
 
 model WorkspaceMember {
@@ -179,4 +216,128 @@ model AuditEvent {
 
   @@index([workspaceId, action])
   @@index([resourceType, resourceId])
+}
+
+model Case {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  type          CaseType
+  templateSlug  String
+  title         String
+  status        CaseStatus  @default(draft)
+  brief         Json
+  paletteId     String      @default("anclora")
+  createdById   String
+  reviewedById  String?
+  approvedById  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id])
+  mapVersions   VisionMapVersion[]
+  evidences     EvidenceReference[]
+  briefExports  BriefExport[]
+  sddExports    SddExport[]
+  handoffDrafts HandoffDraft[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, type])
+}
+
+model VisionMapVersion {
+  id            String   @id @default(cuid())
+  caseId        String
+  version       Int
+  map           Json
+  promptVersion String?
+  llmModel      String?
+  tokensUsed    Int?
+  createdAt     DateTime @default(now())
+
+  case          Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, version])
+  @@index([caseId])
+}
+
+model EvidenceReference {
+  id            String              @id @default(cuid())
+  caseId        String
+  source        String
+  externalRef   String
+  hash          String?
+  sensitivity   EvidenceSensitivity @default(internal)
+  kind          EvidenceKind        @default(manual)
+  sourceVersion String?
+  issuedAt      DateTime?
+  expiresAt     DateTime?
+  reviewState   String              @default("pending")
+  createdAt     DateTime            @default(now())
+
+  case          Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, sensitivity])
+}
+
+model BriefExport {
+  id           String   @id @default(cuid())
+  caseId       String
+  workspaceId  String
+  payload      Json
+  target       String   @default("content-generator-ai")
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  case         Case @relation(fields: [caseId], references: [id])
+
+  @@index([workspaceId, caseId])
+}
+
+model SddExport {
+  id           String   @id @default(cuid())
+  caseId       String
+  workspaceId  String
+  document     String
+  prUrl        String?
+  status       String   @default("generated")
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  case         Case @relation(fields: [caseId], references: [id])
+
+  @@index([workspaceId, caseId])
+}
+
+model HandoffDraft {
+  id             String   @id @default(cuid())
+  caseId         String
+  workspaceId    String
+  payload        Json
+  signature      String
+  idempotencyKey String   @unique
+  createdById    String
+  confirmedById  String?
+  createdAt      DateTime @default(now())
+
+  case           Case                  @relation(fields: [caseId], references: [id])
+  delivery       IntegrationDelivery?
+
+  @@index([workspaceId, caseId])
+}
+
+model IntegrationDelivery {
+  id             String         @id @default(cuid())
+  handoffDraftId String         @unique
+  target         String         @default("nexus")
+  endpoint       String
+  status         DeliveryStatus @default(pending)
+  attempts       Int            @default(0)
+  lastError      String?
+  response       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  handoffDraft   HandoffDraft   @relation(fields: [handoffDraftId], references: [id])
+
+  @@index([status])
 }

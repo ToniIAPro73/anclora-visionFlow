@@ -1,5 +1,7 @@
 # DESIGN — AncloraVisionFlow
 **Versión:** 1.0.0 | **Fecha:** 2026-06-21 | **Estado:** BORRADOR APROBABLE
+
+> **NOTA HISTÓRICA (2026-06-23 — Fase 0 hardening):** Las referencias a *SQLite* y *z-ai-web-dev-sdk* en este documento reflejan el estado pre-Fase 0. Ambas han sido reemplazadas: la base de datos es **PostgreSQL (Neon)** desde la migración `20260622220704_init_postgres_schema`, y el SDK LLM es **`openai` npm** apuntando a OpenRouter. Ver `docs/implementation/decision-register.md` → DEC-OSS-001, DEC-DB-001.
 **Equipo autor:** Staff Architect · Security/AI Governance · UX/UI Lead · DevOps · OSS Evaluator · Ecosystem Integration Architect
 
 > **Convenciones:** Mismas etiquetas que REQUIREMENTS.md (`[VERIFICADO]`, `[INFERENCIA]`, `[PROPUESTA]`, `[DECISIÓN PENDIENTE]`, `[NO VERIFICADO]`).

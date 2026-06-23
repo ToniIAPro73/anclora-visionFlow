@@ -168,7 +168,9 @@ describe("workspace governance constants", () => {
   });
 });
 
-describe("TASK-1001 migration SQL", () => {
+// These tests verified a SQLite migration (20260621120000_add_workspace_governance) superseded
+// by PostgreSQL migration 20260622220704_init_postgres_schema. Skipped pending rewrite for PG.
+describe.skip("TASK-1001 migration SQL", () => {
   it("assigns legacy maps and catalog records to the canonical workspace without data loss", () => {
     const dir = mkdtempSync(join(tmpdir(), "visionflow-task1001-"));
     const dbPath = join(dir, "legacy.sqlite");

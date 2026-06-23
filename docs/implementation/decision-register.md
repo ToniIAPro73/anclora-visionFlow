@@ -1,11 +1,11 @@
 # Decision Register — AncloraVisionFlow Fase 0
-**Fecha:** 2026-06-21
+**Fecha:** 2026-06-21 | **Última actualización:** 2026-06-23 (Fase 0 hardening)
 
 | ID | Descripción | Responsable | Estado | Bloqueante para |
 |---|---|---|---|---|
-| DEC-OSS-001 | SDK OSS para LLM (reemplazar z-ai-web-dev-sdk) | OSS Evaluator + CTO | ⏳ PENDIENTE | TASK-0003 |
-| DEC-AUTH-001 | Provider next-auth (credentials vs OAuth vs SSO) | Responsable Seguridad | ⏳ PENDIENTE | TASK-0005 |
-| DEC-DB-001 | SQLite vs PostgreSQL para Fase 2 (RAG/embeddings) | Staff Architect | ⏳ PENDIENTE | TASK-2001 |
+| DEC-OSS-001 | SDK OSS para LLM (reemplazar z-ai-web-dev-sdk) | OSS Evaluator + CTO | ✅ RESUELTO — `openai` npm (OpenRouter-compatible); z-ai-web-dev-sdk eliminado | — |
+| DEC-AUTH-001 | Provider next-auth (credentials vs OAuth vs SSO) | Responsable Seguridad | ⏳ PENDIENTE | Fase 1 (F1-T1) |
+| DEC-DB-001 | SQLite vs PostgreSQL para Fase 2 (RAG/embeddings) | Staff Architect | ✅ RESUELTO — PostgreSQL (Neon) desde inicio; SQLite abandonado en migración 20260622220704 | — |
 | DEC-NEXUS-001 | Contrato API Nexus (endpoint, auth, payload) | Product + Nexus Owner | ⏳ PENDIENTE | TASK-1004 |
 | DEC-SYNC-001 | Esquema XML SyncXML y protocolo | SyncXML Owner | ⏳ PENDIENTE | TASK-2003 |
 | GATE-DB-001 | Implementación TASK-1001 aprobada con condiciones: workspace canónico `anclora-internal`, migración segura, sin auth/UI/externos | Staff Architect + DBA | ✅ APROBADO | TASK-1001 |

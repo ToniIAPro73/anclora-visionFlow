@@ -1,5 +1,7 @@
 # REQUIREMENTS — AncloraVisionFlow
 **Versión:** 1.0.0 | **Fecha:** 2026-06-21 | **Estado:** BORRADOR APROBABLE
+
+> **NOTA HISTÓRICA (2026-06-23 — Fase 0 hardening):** Las referencias a *SQLite* y *z-ai-web-dev-sdk* en este documento son históricas. Stack actual: **PostgreSQL (Neon)** + **`openai` npm** (OpenRouter). DEC-OSS-001 y DEC-DB-001 marcados como RESUELTOS en `docs/implementation/decision-register.md`.
 **Equipo autor:** Product Strategist · Staff Architect · Security/AI Governance · UX/UI Lead · DevOps · QA Lead · Ecosystem Integration Architect · OSS Evaluator
 
 > **Convenciones de evidencia**

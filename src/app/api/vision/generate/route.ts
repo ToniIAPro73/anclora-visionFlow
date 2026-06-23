@@ -25,6 +25,7 @@ import { autoConnect, layoutVisionMap } from "@/lib/vision-map";
 
 const GenerateSchema = z.object({
   idea: z.string().min(3).max(2000).trim(),
+  templateSlug: z.string().optional(),
 });
 
 export const runtime = "nodejs";
@@ -125,6 +126,12 @@ export async function POST(req: NextRequest) {
       );
     }
     const idea = parseResult.data.idea;
+    const templateSlug = parseResult.data.templateSlug;
+
+    // If templateSlug provided, inject Real Estate metrics context
+    const realEstateContext = templateSlug
+      ? `\n\nContexto inmobiliario: yield esperado, días en mercado, % leads cualificados, mandatos activos, demanda por nacionalidad.\n`
+      : "";
 
     // Load the catalog from DB (with hardcoded defaults as fallback)
     const { catalogText, apps: catalogApps } = await getCatalogForPrompt(8);
@@ -174,7 +181,7 @@ export async function POST(req: NextRequest) {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Idea: """${idea}"""\n\nGenera el JSON del mapa visual.`,
+          content: `Idea: """${idea}"""${realEstateContext}\n\nGenera el JSON del mapa visual.`,
         },
       ],
       temperature: 0.6,

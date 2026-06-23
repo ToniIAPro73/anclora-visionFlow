@@ -107,7 +107,7 @@ export async function POST(
 
     try {
       const blob = await put(filename, Buffer.from(arrayBuffer), {
-        access: "public",
+        access: "private",
         contentType: file.type,
       });
 

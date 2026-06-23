@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  DATABASE_URL: "file:./dev.db"
   NEXTAUTH_SECRET: "ci-secret-placeholder"
   NEXTAUTH_URL: "http://localhost:3000"
+  OPENROUTER_API_KEY: "ci-placeholder-not-used"
 
 permissions:
   contents: write
@@ -14,6 +14,24 @@ permissions:
 jobs:
   promote:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: visionflow_ci
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: visionflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://visionflow_ci:ci_password@localhost:5432/visionflow_test"
 
     steps:
       - name: Checkout
@@ -37,11 +55,15 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
+      - name: Apply migrations
+        run: bunx prisma migrate deploy
+
       - name: Checkout staging
         run: git checkout staging
 
       - name: Merge development
-        run: git merge --no-ff origin/development -m "chore: merge development to staging [ci-skip]"
+        run: |
+          git merge --no-ff origin/development -m "chore: merge development to staging [ci-skip]"
 
       - name: Lint
         run: bun run lint
@@ -51,7 +73,6 @@ jobs:
 
       - name: Test
         run: bun run test
-        continue-on-error: true  # eliminar cuando los tests estén implementados (TASK-1008)
 
       - name: Build
         run: bun run build

@@ -22,9 +22,11 @@ export function ExportHistory({
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
-  const handleCopyUrl = async (exportId: string, url: string) => {
+  const handleCopyUrl = async (exportId: string) => {
+    // Copy the authenticated download URL, not the raw blob URL
+    const downloadUrl = `/api/vision/maps/${mapId}/exports/${exportId}/download`;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(window.location.origin + downloadUrl);
       setCopiedId(exportId);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
@@ -105,7 +107,7 @@ export function ExportHistory({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => handleCopyUrl(exp.id, exp.blobUrl)}
+                onClick={() => handleCopyUrl(exp.id)}
                 title="Copiar URL"
                 disabled={isLoading || deletingId === exp.id}
               >
